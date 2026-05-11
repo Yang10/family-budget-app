@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#ffffff">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="家庭記帳">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%234f46e5' rx='20'/><text x='50' y='50' font-size='50' text-anchor='middle' dy='.3em' fill='white'>💰</text></svg>">
+    <title>Family Budget App</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Firebase App (the core Firebase SDK) is always required and must be listed first -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <!-- Add Firebase products that you want to use -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        
+        <!-- Security Lock Screen -->
+        <div id="lock-screen">
+            <i class="fa-solid fa-lock lock-icon"></i>
+            <h2 style="margin-bottom: 24px; color: var(--text-main);">請輸入密碼</h2>
+            <div class="pin-input-group">
+                <input type="password" id="pin-input" placeholder="••••" maxlength="4" autocomplete="off" inputmode="numeric">
+                <button class="btn btn-primary" onclick="checkPin()">解鎖</button>
+            </div>
+            <p id="pin-error" style="color: var(--expense); margin-top: 16px; font-size: 0.9rem; display: none;">密碼錯誤，請重試</p>
+        </div>
+
+        <!-- Header -->
+        <header class="app-header">
+            <h1 id="header-title">日常收支</h1>
+            <div class="balance-display">
+                <span class="balance-label">本月結餘</span>
+                <h2 id="current-month-balance">$0</h2>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Tab 1: 記帳 (Cash Flow) -->
+            <section id="tab-record" class="tab-pane active">
+                <div class="action-buttons">
+                    <button class="btn btn-expense" onclick="openModal('expense')">
+                        <i class="fa-solid fa-minus"></i> 記支出
+                    </button>
+                    <button class="btn btn-income" onclick="openModal('income')">
+                        <i class="fa-solid fa-plus"></i> 記收入
+                    </button>
+                </div>
+                
+                <h3 class="section-title">最近紀錄</h3>
+                <div class="transaction-list" id="recent-transactions">
+                    <!-- Transactions will be loaded here via JS -->
+                </div>
+            </section>
+
+            <!-- Tab 2: 圖表 (Dashboard) -->
+            <section id="tab-dashboard" class="tab-pane">
+                <div class="chart-container card">
+                    <canvas id="expenseChart"></canvas>
+                </div>
+                
+                <div class="stats-grid">
+                    <div class="stat-card card">
+                        <span class="stat-title">平均收入</span>
+                        <span class="stat-value income-text" id="avg-income">$0</span>
+                    </div>
+                    <div class="stat-card card">
+                        <span class="stat-title">平均支出</span>
+                        <span class="stat-value expense-text" id="avg-expense">$0</span>
+                    </div>
+                    <div class="stat-card card full-width">
+                        <span class="stat-title">本月結餘</span>
+                        <span class="stat-value" id="avg-savings">$0</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Tab 3: 盤點 (Inventory) -->
+            <section id="tab-inventory" class="tab-pane">
+                <div class="inventory-header">
+                    <p class="inventory-subtitle">定期更新資產，掌握真實財富</p>
+                    <h2 class="net-worth-total" id="net-worth-total">$0</h2>
+                    <span class="inventory-date">最後更新: <span id="last-inventory-date">從未</span></span>
+                </div>
+                
+                <div class="account-list" id="account-list">
+                    <!-- Accounts will be loaded here via JS -->
+                </div>
+                
+                <div class="add-account-section">
+                    <input type="text" id="new-account-name" class="add-account-input" placeholder="新增自訂帳戶名稱...">
+                    <button class="btn-icon" onclick="addNewAccount()"><i class="fa-solid fa-plus"></i></button>
+                </div>
+                
+                <button class="btn btn-primary full-width" onclick="saveInventory()">
+                    <i class="fa-solid fa-check"></i> 儲存盤點結果
+                </button>
+            </section>
+        </main>
+
+        <!-- Bottom Navigation -->
+        <nav class="bottom-nav">
+            <button class="nav-item active" onclick="switchTab('record')">
+                <i class="fa-solid fa-wallet"></i>
+                <span>記帳</span>
+            </button>
+            <button class="nav-item" onclick="switchTab('dashboard')">
+                <i class="fa-solid fa-chart-pie"></i>
+                <span>報表</span>
+            </button>
+            <button class="nav-item" onclick="switchTab('inventory')">
+                <i class="fa-solid fa-vault"></i>
+                <span>盤點</span>
+            </button>
+        </nav>
+
+        <!-- Modal for adding transaction -->
+        <div class="modal-overlay" id="transaction-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="modal-title">新增支出</h3>
+                    <button class="close-btn" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <form id="transaction-form" onsubmit="handleTransactionSubmit(event)">
+                    <input type="hidden" id="tx-type" value="expense">
+                    
+                    <div class="form-group">
+                        <label>記帳人</label>
+                        <div class="payer-selector">
+                            <label class="payer-option">
+                                <input type="radio" name="tx-payer" value="揚" checked>
+                                <span class="payer-btn">揚 (老公)</span>
+                            </label>
+                            <label class="payer-option">
+                                <input type="radio" name="tx-payer" value="妡">
+                                <span class="payer-btn">妡 (老婆)</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="tx-amount">金額</label>
+                        <input type="number" id="tx-amount" placeholder="0" required min="1">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="tx-category">分類</label>
+                        <select id="tx-category" required>
+                            <!-- Options populated via JS -->
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="tx-date">日期</label>
+                        <input type="date" id="tx-date" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="tx-note">備註 (選填)</label>
+                        <input type="text" id="tx-note" placeholder="例如：晚餐、買菜...">
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary full-width">儲存</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
