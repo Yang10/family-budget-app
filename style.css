@@ -285,19 +285,17 @@ h1 {
     min-width: 0;
 }
 
-.tx-icon {
+.tx-icon-emoji {
     width: 48px;
     height: 48px;
-    border-radius: 50%;
+    border-radius: 14px;
     display: flex;
     justify-content: center;
     align-items: center;
-    font-size: 1.2rem;
+    font-size: 1.5rem;
     flex-shrink: 0;
+    background: var(--bg-main);
 }
-
-.tx-icon.expense { background: #ffe4e6; color: var(--expense); }
-.tx-icon.income { background: #d1fae5; color: var(--income); }
 
 .tx-details { min-width: 0; }
 .tx-details h4 { font-size: 1.05rem; margin-bottom: 4px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
@@ -344,6 +342,58 @@ h1 {
 }
 
 /* Dashboard */
+.month-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 16px 0 8px;
+}
+
+.month-nav-btn {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-main);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.month-nav-btn:active { background: var(--primary); color: white; }
+
+.month-label {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text-main);
+    min-width: 100px;
+    text-align: center;
+}
+
+.filter-pills {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 0 16px;
+}
+
+.pill {
+    padding: 6px 16px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.pill.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+
 .chart-container {
     padding: 24px;
     margin-bottom: 24px;

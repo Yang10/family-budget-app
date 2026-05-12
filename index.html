@@ -12,7 +12,7 @@
     <title>Family Budget App</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=20260512d">
+    <link rel="stylesheet" href="style.css?v=20260512e">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -65,25 +65,45 @@
 
             <!-- Tab 2: 圖表 (Dashboard) -->
             <section id="tab-dashboard" class="tab-pane">
+                <!-- 月份切換 -->
+                <div class="month-nav">
+                    <button class="month-nav-btn" onclick="changeMonth(-1)"><i class="fa-solid fa-chevron-left"></i></button>
+                    <span class="month-label" id="current-month-label">2026年5月</span>
+                    <button class="month-nav-btn" onclick="changeMonth(1)"><i class="fa-solid fa-chevron-right"></i></button>
+                </div>
+
+                <!-- 記帳人篩選 -->
+                <div class="filter-pills">
+                    <button class="pill active" onclick="filterByPayer('all')">全部</button>
+                    <button class="pill" onclick="filterByPayer('揚')">👨 揚</button>
+                    <button class="pill" onclick="filterByPayer('妡')">👩 妡</button>
+                </div>
+
+                <!-- 統計卡片 -->
+                <div class="stats-grid">
+                    <div class="stat-card card">
+                        <span class="stat-title">收入</span>
+                        <span class="stat-value income-text" id="avg-income">$0</span>
+                    </div>
+                    <div class="stat-card card">
+                        <span class="stat-title">支出</span>
+                        <span class="stat-value expense-text" id="avg-expense">$0</span>
+                    </div>
+                    <div class="stat-card card full-width">
+                        <span class="stat-title">結餘</span>
+                        <span class="stat-value" id="avg-savings">$0</span>
+                    </div>
+                </div>
+
+                <!-- 支出圓餅圖 -->
                 <div class="chart-container card">
                     <canvas id="expenseChart"></canvas>
                 </div>
                 
-                <div class="stats-grid">
-                    <div class="stat-card card">
-                        <span class="stat-title">本月收入</span>
-                        <span class="stat-value income-text" id="avg-income">$0</span>
-                    </div>
-                    <div class="stat-card card">
-                        <span class="stat-title">本月支出</span>
-                        <span class="stat-value expense-text" id="avg-expense">$0</span>
-                    </div>
-                    <div class="stat-card card full-width">
-                        <span class="stat-title">本月結餘</span>
-                        <span class="stat-value" id="avg-savings">$0</span>
-                    </div>
+                <!-- 年度收支長條圖 -->
+                <div class="chart-container card">
+                    <canvas id="yearlyChart"></canvas>
                 </div>
-                
             </section>
 
             <!-- Tab 3: 盤點 (Inventory) -->
@@ -180,6 +200,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=20260512d"></script>
+    <script src="app.js?v=20260512e"></script>
 </body>
 </html>

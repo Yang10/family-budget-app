@@ -34,11 +34,23 @@ const categories = {
     income: ['薪水', '獎金', '投資獲利', '利息', '帳務校正']
 };
 
+const categoryEmoji = {
+    '房貸': '🏠', '車貸': '🚗', '學費': '📚', '水電瓦斯': '💡',
+    '信用卡': '💳', '餐飲': '🍽️', '日常用品': '🛒', '交通': '🚌',
+    '購物': '🛍️', '娛樂': '🎮', '帳務校正': '📝',
+    '薪水': '💰', '獎金': '🎁', '投資獲利': '📈', '利息': '🏦'
+};
+
 let state = {
     transactions: [],
     accounts: [],
     lastInventoryDate: null
 };
+
+// 報表狀態
+let selectedYear = new Date().getFullYear();
+let selectedMonth = new Date().getMonth();
+let selectedPayer = 'all';
 
 // 判斷是否已設定 Google Sheets
 function isSheetsConfigured() {
@@ -238,19 +250,17 @@ function renderTransactions() {
 
     list.innerHTML = sortedTx.map(tx => {
         const isExpense = tx.type === 'expense';
-        const iconClass = isExpense ? 'fa-minus' : 'fa-plus';
         const typeClass = isExpense ? 'expense' : 'income';
         const sign = isExpense ? '-' : '+';
-        const payerBadge = tx.payer ? `<span class="payer-badge badge-${tx.payer}">${tx.payer}</span>` : '';
+        const emoji = categoryEmoji[tx.category] || '📋';
+        const payerEmoji = tx.payer === '揚' ? '👨' : '👩';
 
         return `
             <div class="tx-item card">
                 <div class="tx-info">
-                    <div class="tx-icon ${typeClass}">
-                        <i class="fa-solid ${iconClass}"></i>
-                    </div>
+                    <div class="tx-icon-emoji">${emoji}</div>
                     <div class="tx-details">
-                        <h4>${tx.category} ${payerBadge}</h4>
+                        <h4>${tx.category} <span class="payer-badge badge-${tx.payer}">${payerEmoji} ${tx.payer}</span></h4>
                         <p>${tx.date} ${tx.note ? '· ' + tx.note : ''}</p>
                     </div>
                 </div>
@@ -269,70 +279,117 @@ function renderTransactions() {
 // 9. 儀表板與圖表
 // ==========================================
 let expenseChart = null;
+let yearlyChart = null;
+
+// 月份切換
+function changeMonth(delta) {
+    selectedMonth += delta;
+    if (selectedMonth > 11) { selectedMonth = 0; selectedYear++; }
+    if (selectedMonth < 0) { selectedMonth = 11; selectedYear--; }
+    updateMonthLabel();
+    updateDashboard();
+}
+
+function updateMonthLabel() {
+    const label = document.getElementById('current-month-label');
+    if (label) label.textContent = `${selectedYear}年${selectedMonth + 1}月`;
+}
+
+// 記帳人篩選
+function filterByPayer(payer) {
+    selectedPayer = payer;
+    document.querySelectorAll('.filter-pills .pill').forEach(p => p.classList.remove('active'));
+    event.currentTarget.classList.add('active');
+    updateDashboard();
+}
+
+// 篩選交易（月份 + 記帳人）
+function getFilteredTx() {
+    return state.transactions.filter(tx => {
+        const d = new Date(tx.date);
+        const monthMatch = d.getMonth() === selectedMonth && d.getFullYear() === selectedYear;
+        const payerMatch = selectedPayer === 'all' || tx.payer === selectedPayer;
+        return monthMatch && payerMatch;
+    });
+}
 
 function updateDashboard() {
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-
-    let totalIncome = 0;
-    let totalExpense = 0;
-
-    state.transactions.forEach(tx => {
-        const txDate = new Date(tx.date);
-        if (txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear) {
-            if (tx.type === 'income') totalIncome += tx.amount;
-            if (tx.type === 'expense') totalExpense += tx.amount;
-        }
+    const filtered = getFilteredTx();
+    let totalIncome = 0, totalExpense = 0;
+    filtered.forEach(tx => {
+        if (tx.type === 'income') totalIncome += tx.amount;
+        if (tx.type === 'expense') totalExpense += tx.amount;
     });
-
     const balance = totalIncome - totalExpense;
 
     document.getElementById('current-month-balance').textContent = `$${balance.toLocaleString()}`;
     document.getElementById('avg-income').textContent = `$${totalIncome.toLocaleString()}`;
     document.getElementById('avg-expense').textContent = `$${totalExpense.toLocaleString()}`;
     document.getElementById('avg-savings').textContent = `$${balance.toLocaleString()}`;
+    updateMonthLabel();
 
     if (expenseChart) updateChart();
+    if (yearlyChart) updateYearlyChart();
 }
 
 function initChart() {
-    const ctx = document.getElementById('expenseChart').getContext('2d');
     Chart.defaults.color = '#64748b';
     Chart.defaults.font.family = "'Inter', 'Noto Sans TC', sans-serif";
 
-    expenseChart = new Chart(ctx, {
+    // 圓餅圖
+    expenseChart = new Chart(document.getElementById('expenseChart').getContext('2d'), {
         type: 'doughnut',
+        data: { labels: [], datasets: [{ data: [], backgroundColor: [], borderWidth: 0, cutout: '75%' }] },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'right', labels: { color: '#1e293b', padding: 12, font: { size: 11 } } },
+                title: { display: true, text: '支出分佈', color: '#1e293b' }
+            }
+        }
+    });
+
+    // 年度長條圖
+    yearlyChart = new Chart(document.getElementById('yearlyChart').getContext('2d'), {
+        type: 'bar',
         data: {
-            labels: [],
-            datasets: [{
-                data: [],
-                backgroundColor: ['#4f46e5', '#8b5cf6', '#ec4899', '#e11d48', '#f59e0b', '#059669', '#3b82f6', '#64748b'],
-                borderWidth: 0, cutout: '75%'
-            }]
+            labels: ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
+            datasets: [
+                { label: '收入', data: Array(12).fill(0), backgroundColor: 'rgba(5, 150, 105, 0.7)', borderRadius: 4 },
+                { label: '支出', data: Array(12).fill(0), backgroundColor: 'rgba(225, 29, 72, 0.7)', borderRadius: 4 }
+            ]
         },
         options: {
             responsive: true, maintainAspectRatio: false,
             plugins: {
-                legend: { position: 'right', labels: { color: '#1e293b', padding: 15, font: { size: 11 } } },
-                title: { display: true, text: '本月支出分佈', color: '#1e293b' }
+                title: { display: true, text: '年度收支概覽', color: '#1e293b' },
+                legend: { labels: { color: '#1e293b', font: { size: 11 } } }
+            },
+            scales: {
+                x: { grid: { display: false } },
+                y: { beginAtZero: true, ticks: { callback: v => v >= 10000 ? (v/10000)+'萬' : v.toLocaleString() } }
             }
         }
     });
+
+    // 自動跳到最近有資料的月份
+    autoSelectLatestMonth();
 }
 
+function autoSelectLatestMonth() {
+    if (state.transactions.length === 0) return;
+    const dates = state.transactions.map(tx => new Date(tx.date)).sort((a, b) => b - a);
+    selectedYear = dates[0].getFullYear();
+    selectedMonth = dates[0].getMonth();
+}
+
+const chartColors = ['#4f46e5','#8b5cf6','#ec4899','#e11d48','#f59e0b','#059669','#3b82f6','#64748b','#06b6d4','#84cc16','#f97316'];
+
 function updateChart() {
-    const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
-
+    const filtered = getFilteredTx();
     const categoryTotals = {};
-
-    state.transactions.forEach(tx => {
-        const txDate = new Date(tx.date);
-        if (tx.type === 'expense' && txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear) {
-            categoryTotals[tx.category] = (categoryTotals[tx.category] || 0) + tx.amount;
-        }
+    filtered.forEach(tx => {
+        if (tx.type === 'expense') categoryTotals[tx.category] = (categoryTotals[tx.category] || 0) + tx.amount;
     });
 
     const labels = Object.keys(categoryTotals);
@@ -343,11 +400,30 @@ function updateChart() {
         expenseChart.data.datasets[0].data = [1];
         expenseChart.data.datasets[0].backgroundColor = ['#e2e8f0'];
     } else {
-        expenseChart.data.labels = labels;
+        expenseChart.data.labels = labels.map(l => (categoryEmoji[l] || '') + ' ' + l);
         expenseChart.data.datasets[0].data = data;
-        expenseChart.data.datasets[0].backgroundColor = ['#4f46e5', '#8b5cf6', '#ec4899', '#e11d48', '#f59e0b', '#059669', '#3b82f6', '#64748b'];
+        expenseChart.data.datasets[0].backgroundColor = chartColors.slice(0, labels.length);
     }
+    expenseChart.options.plugins.title.text = `${selectedYear}年${selectedMonth + 1}月 支出分佈`;
     expenseChart.update();
+}
+
+function updateYearlyChart() {
+    const incomeByMonth = Array(12).fill(0);
+    const expenseByMonth = Array(12).fill(0);
+
+    state.transactions.forEach(tx => {
+        const d = new Date(tx.date);
+        if (d.getFullYear() === selectedYear && (selectedPayer === 'all' || tx.payer === selectedPayer)) {
+            if (tx.type === 'income') incomeByMonth[d.getMonth()] += tx.amount;
+            if (tx.type === 'expense') expenseByMonth[d.getMonth()] += tx.amount;
+        }
+    });
+
+    yearlyChart.data.datasets[0].data = incomeByMonth;
+    yearlyChart.data.datasets[1].data = expenseByMonth;
+    yearlyChart.options.plugins.title.text = `${selectedYear}年 收支概覽`;
+    yearlyChart.update();
 }
 
 // ==========================================
