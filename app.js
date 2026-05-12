@@ -82,7 +82,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // 動態計算螢幕高度（修正 iOS Safari 底部空白）
 function setAppHeight() {
-    document.documentElement.style.setProperty('--app-height', window.innerHeight + 'px');
+    const h = window.innerHeight + 'px';
+    document.documentElement.style.height = h;
+    document.body.style.height = h;
 }
 window.addEventListener('resize', setAppHeight);
 window.addEventListener('orientationchange', () => setTimeout(setAppHeight, 100));
