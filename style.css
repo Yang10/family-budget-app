@@ -27,19 +27,21 @@ body {
     color: var(--text-main);
     display: flex;
     justify-content: center;
-    min-height: 100vh;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
 }
 
 .app-container {
     width: 100%;
     max-width: 480px;
-    min-height: 100vh;
-    min-height: 100dvh;
+    height: 100%;
     display: flex;
     flex-direction: column;
     position: relative;
     background: var(--bg-main);
     box-shadow: 0 0 40px rgba(0,0,0,0.1);
+    overflow: hidden;
 }
 
 /* Loading Overlay */
@@ -181,7 +183,8 @@ h1 {
 .main-content {
     flex: 1;
     overflow-y: auto;
-    padding: 24px 20px 100px;
+    padding: 24px 20px 24px;
+    -webkit-overflow-scrolling: touch;
 }
 
 .tab-pane {
@@ -503,8 +506,7 @@ h1 {
 
 /* Bottom Nav */
 .bottom-nav {
-    position: sticky;
-    bottom: 0; left: 0; right: 0;
+    flex-shrink: 0;
     display: flex;
     justify-content: space-around;
     padding: 12px 8px calc(env(safe-area-inset-bottom, 8px) + 8px);
