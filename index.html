@@ -14,15 +14,16 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
-    <!-- Firebase App (the core Firebase SDK) is always required and must be listed first -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <!-- Add Firebase products that you want to use -->
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 </head>
 <body>
     <div class="app-container">
         
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" style="display:none;">
+            <div class="loading-spinner"></div>
+            <p>載入資料中...</p>
+        </div>
+
         <!-- Security Lock Screen -->
         <div id="lock-screen">
             <i class="fa-solid fa-lock lock-icon"></i>
@@ -70,11 +71,11 @@
                 
                 <div class="stats-grid">
                     <div class="stat-card card">
-                        <span class="stat-title">平均收入</span>
+                        <span class="stat-title">本月收入</span>
                         <span class="stat-value income-text" id="avg-income">$0</span>
                     </div>
                     <div class="stat-card card">
-                        <span class="stat-title">平均支出</span>
+                        <span class="stat-title">本月支出</span>
                         <span class="stat-value expense-text" id="avg-expense">$0</span>
                     </div>
                     <div class="stat-card card full-width">
@@ -82,6 +83,10 @@
                         <span class="stat-value" id="avg-savings">$0</span>
                     </div>
                 </div>
+                
+                <button class="btn btn-secondary full-width" style="margin-top: 16px;" onclick="exportToCSV()">
+                    <i class="fa-solid fa-file-csv"></i> 匯出明細為 CSV (可存入 Excel)
+                </button>
             </section>
 
             <!-- Tab 3: 盤點 (Inventory) -->

@@ -42,6 +42,69 @@ body {
     box-shadow: 0 0 40px rgba(0,0,0,0.1);
 }
 
+/* Loading Overlay */
+#loading-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(248, 250, 252, 0.9);
+    z-index: 999;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+.loading-spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid var(--border);
+    border-top: 3px solid var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Toast Notifications */
+.toast {
+    position: absolute;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-80px);
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    z-index: 2000;
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    white-space: nowrap;
+    box-shadow: var(--shadow-md);
+}
+
+.toast.show {
+    transform: translateX(-50%) translateY(0);
+}
+
+.toast-success {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.toast-warning {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.toast-info {
+    background: #e0e7ff;
+    color: #3730a3;
+}
+
 /* Security Lock Screen */
 #lock-screen {
     position: absolute;
@@ -167,6 +230,7 @@ h1 {
 }
 
 .btn:active { transform: scale(0.96); }
+.btn:disabled { opacity: 0.5; pointer-events: none; }
 
 .btn-expense {
     background: #ffe4e6;
@@ -218,6 +282,8 @@ h1 {
     display: flex;
     align-items: center;
     gap: 16px;
+    flex: 1;
+    min-width: 0;
 }
 
 .tx-icon {
@@ -228,13 +294,15 @@ h1 {
     justify-content: center;
     align-items: center;
     font-size: 1.2rem;
+    flex-shrink: 0;
 }
 
 .tx-icon.expense { background: #ffe4e6; color: var(--expense); }
 .tx-icon.income { background: #d1fae5; color: var(--income); }
 
+.tx-details { min-width: 0; }
 .tx-details h4 { font-size: 1.05rem; margin-bottom: 4px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-.tx-details p { font-size: 0.85rem; color: var(--text-muted); }
+.tx-details p { font-size: 0.85rem; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .payer-badge {
     font-size: 0.7rem;
@@ -243,13 +311,38 @@ h1 {
     background: #e2e8f0;
     color: var(--text-main);
     font-weight: 600;
+    flex-shrink: 0;
 }
 .payer-badge.badge-妡 { background: #fce7f3; color: #db2777; }
 .payer-badge.badge-揚 { background: #e0e7ff; color: #4f46e5; }
 
-.tx-amount { font-weight: 700; font-size: 1.15rem; }
+.tx-amount-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.tx-amount { font-weight: 700; font-size: 1.15rem; white-space: nowrap; }
 .expense-text { color: var(--expense); }
 .income-text { color: var(--income); }
+
+.tx-delete-btn {
+    background: none;
+    border: none;
+    color: #cbd5e1;
+    font-size: 0.85rem;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 50%;
+    transition: background 0.2s, color 0.2s;
+}
+
+.tx-delete-btn:hover,
+.tx-delete-btn:active {
+    background: #ffe4e6;
+    color: var(--expense);
+}
 
 /* Dashboard */
 .chart-container {
