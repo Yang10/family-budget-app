@@ -405,6 +405,15 @@ h1 {
 }
 .account-input:focus { outline: none; border-color: var(--primary); }
 
+.account-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-main);
+    padding: 10px 0;
+    text-align: right;
+    min-width: 100px;
+}
+
 .delete-account-btn {
     background: none;
     border: none;

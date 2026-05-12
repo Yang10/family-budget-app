@@ -353,24 +353,35 @@ function updateChart() {
 // ==========================================
 // 10. 盤點功能與動態帳戶
 // ==========================================
+let inventoryEditing = false;
+
 function renderInventory() {
     const list = document.getElementById('account-list');
     let total = 0;
+    const isEditing = inventoryEditing;
 
     list.innerHTML = state.accounts.map(acc => {
         total += acc.balance;
         return `
             <div class="account-item card">
                 <span class="account-name">${acc.name}</span>
-                <input type="number" class="account-input" data-id="${acc.id}" value="${acc.balance}" onchange="updateAccountBalance(this)">
-                <button class="delete-account-btn" onclick="deleteAccount('${acc.id}')" title="刪除此帳戶">
-                    <i class="fa-solid fa-trash-can"></i>
-                </button>
+                ${isEditing
+                    ? `<input type="number" class="account-input" data-id="${acc.id}" value="${acc.balance}" onchange="updateAccountBalance(this)" inputmode="numeric">
+                       <button class="delete-account-btn" onclick="deleteAccount('${acc.id}')" title="刪除"><i class="fa-solid fa-trash-can"></i></button>`
+                    : `<span class="account-value">$${acc.balance.toLocaleString()}</span>`
+                }
             </div>
         `;
     }).join('');
 
     document.getElementById('net-worth-total').textContent = `$${total.toLocaleString()}`;
+
+    const addSection = document.querySelector('.add-account-section');
+    const saveBtn = document.getElementById('btn-save-inventory');
+    const editBtn = document.getElementById('btn-edit-inventory');
+    if (addSection) addSection.style.display = isEditing ? 'flex' : 'none';
+    if (saveBtn) saveBtn.style.display = isEditing ? 'block' : 'none';
+    if (editBtn) editBtn.style.display = isEditing ? 'none' : 'block';
 
     if (state.lastInventoryDate) {
         const date = new Date(state.lastInventoryDate);
@@ -378,12 +389,16 @@ function renderInventory() {
     }
 }
 
+function toggleInventoryEdit() {
+    inventoryEditing = true;
+    renderInventory();
+}
+
 function updateAccountBalance(input) {
     const id = input.dataset.id;
     const value = parseInt(input.value) || 0;
     const acc = state.accounts.find(a => a.id === id);
     if (acc) acc.balance = value;
-
     let total = state.accounts.reduce((sum, a) => sum + a.balance, 0);
     document.getElementById('net-worth-total').textContent = `$${total.toLocaleString()}`;
 }
@@ -392,60 +407,36 @@ function addNewAccount() {
     const input = document.getElementById('new-account-name');
     const name = input.value.trim();
     if (!name) return;
-
-    const newAcc = {
-        id: 'acc_' + Date.now(),
-        name: name,
-        balance: 0
-    };
-
-    state.accounts.push(newAcc);
+    state.accounts.push({ id: 'acc_' + Date.now(), name: name, balance: 0 });
     input.value = '';
     renderInventory();
 }
 
 function deleteAccount(id) {
-    if (confirm("確定要刪除這個帳戶嗎？（這只會從盤點清單移除，不會刪除日常記帳紀錄）")) {
+    if (confirm("確定要刪除這個帳戶嗎？")) {
         state.accounts = state.accounts.filter(acc => acc.id !== id);
         renderInventory();
-        saveInventory();
     }
 }
 
 function saveInventory() {
-    // 同步所有的 input 值
     document.querySelectorAll('.account-input').forEach(input => {
         const id = input.dataset.id;
         const value = parseInt(input.value) || 0;
         const acc = state.accounts.find(a => a.id === id);
         if (acc) acc.balance = value;
     });
-
     state.lastInventoryDate = new Date().toISOString();
-
-    // 本地儲存
     saveLocalData();
+    inventoryEditing = false;
     renderInventory();
-
-    // 同步到 Google Sheets
     syncToSheets('saveInventory', {
         accounts: state.accounts,
         lastInventoryDate: state.lastInventoryDate
     });
-
-    showSaveSuccess();
+    showToast('✅ 盤點已儲存！', 'success');
 }
 
-function showSaveSuccess() {
-    const btn = document.querySelector('#tab-inventory .btn-primary');
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '<i class="fa-solid fa-check-double"></i> 已儲存成功！';
-    btn.style.background = 'var(--income)';
-    setTimeout(() => {
-        btn.innerHTML = originalText;
-        btn.style.background = '';
-    }, 2000);
-}
 
 // ==========================================
 // 11. 匯出 CSV 功能

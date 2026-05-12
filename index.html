@@ -12,7 +12,7 @@
     <title>Family Budget App</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=20260512c">
+    <link rel="stylesheet" href="style.css?v=20260512d">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -98,13 +98,16 @@
                     <!-- Accounts will be loaded here via JS -->
                 </div>
                 
-                <div class="add-account-section">
+                <div class="add-account-section" style="display:none">
                     <input type="text" id="new-account-name" class="add-account-input" placeholder="新增自訂帳戶名稱...">
                     <button class="btn-icon" onclick="addNewAccount()"><i class="fa-solid fa-plus"></i></button>
                 </div>
                 
-                <button class="btn btn-primary full-width" onclick="saveInventory()">
+                <button class="btn btn-primary full-width" id="btn-save-inventory" style="display:none" onclick="saveInventory()">
                     <i class="fa-solid fa-check"></i> 儲存盤點結果
+                </button>
+                <button class="btn btn-secondary full-width" id="btn-edit-inventory" onclick="toggleInventoryEdit()">
+                    <i class="fa-solid fa-pen-to-square"></i> 編輯盤點
                 </button>
             </section>
         </main>
@@ -177,6 +180,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=20260512c"></script>
+    <script src="app.js?v=20260512d"></script>
 </body>
 </html>
