@@ -11,16 +11,27 @@ const SECURITY_PIN = "1234"; // 您可以在這裡修改您的 4 位數密碼
 // 2. 系統變數與初始化
 // ==========================================
 const defaultAccounts = [
-    { id: 'acc1', name: '揚國泰', balance: 0 },
-    { id: 'acc2', name: '妡永豐', balance: 0 },
-    { id: 'acc3', name: '妡Line', balance: 0 },
-    { id: 'acc4', name: '外幣(日/韓/紐)', balance: 0 },
-    { id: 'acc5', name: '證券(S/R/Y)', balance: 0 }
+    // 銀行帳戶
+    { id: 'bank1', name: '揚國泰', balance: 0 },
+    { id: 'bank2', name: '妡永豐', balance: 0 },
+    { id: 'bank3', name: '妡Line', balance: 0 },
+    { id: 'bank4', name: '妡HSBC', balance: 0 },
+    { id: 'bank5', name: '妡台銀', balance: 0 },
+    { id: 'bank6', name: '妡王道', balance: 0 },
+    // 其他資產
+    { id: 'asset1', name: '避難包', balance: 0 },
+    { id: 'asset2', name: '日幣', balance: 0 },
+    { id: 'asset3', name: '韓幣', balance: 0 },
+    { id: 'asset4', name: '紐幣', balance: 0 },
+    { id: 'asset5', name: '投資', balance: 0 },
+    { id: 'asset6', name: 'S證券', balance: 0 },
+    { id: 'asset7', name: 'R證券', balance: 0 },
+    { id: 'asset8', name: 'Y證券', balance: 0 }
 ];
 
 const categories = {
-    expense: ['餐飲', '日常用品', '交通', '購物', '娛樂', '固定支出 (房貸/水電等)', '帳務校正 / 漏記 / 匯損'],
-    income: ['薪水', '獎金', '投資獲利', '利息', '帳務校正 / 溢出']
+    expense: ['房貸', '車貸', '學費', '水電瓦斯', '信用卡', '餐飲', '日常用品', '交通', '購物', '娛樂', '帳務校正'],
+    income: ['薪水', '獎金', '投資獲利', '利息', '帳務校正']
 };
 
 let state = {
