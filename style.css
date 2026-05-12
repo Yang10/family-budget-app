@@ -285,16 +285,15 @@ h1 {
     min-width: 0;
 }
 
-.tx-icon-emoji {
-    width: 48px;
-    height: 48px;
-    border-radius: 14px;
+.tx-icon-svg {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
     display: flex;
     justify-content: center;
     align-items: center;
-    font-size: 1.5rem;
+    font-size: 1.1rem;
     flex-shrink: 0;
-    background: var(--bg-main);
 }
 
 .tx-details { min-width: 0; }

@@ -34,11 +34,18 @@ const categories = {
     income: ['薪水', '獎金', '投資獲利', '利息', '帳務校正']
 };
 
-const categoryEmoji = {
-    '房貸': '🏠', '車貸': '🚗', '學費': '📚', '水電瓦斯': '💡',
-    '信用卡': '💳', '餐飲': '🍽️', '日常用品': '🛒', '交通': '🚌',
-    '購物': '🛍️', '娛樂': '🎮', '帳務校正': '📝',
-    '薪水': '💰', '獎金': '🎁', '投資獲利': '📈', '利息': '🏦'
+const categoryIcon = {
+    '房貸': 'fa-house', '車貸': 'fa-car', '學費': 'fa-graduation-cap', '水電瓦斯': 'fa-bolt',
+    '信用卡': 'fa-credit-card', '餐飲': 'fa-utensils', '日常用品': 'fa-cart-shopping', '交通': 'fa-bus',
+    '購物': 'fa-bag-shopping', '娛樂': 'fa-gamepad', '帳務校正': 'fa-pen-ruler',
+    '薪水': 'fa-sack-dollar', '獎金': 'fa-gift', '投資獲利': 'fa-chart-line', '利息': 'fa-building-columns'
+};
+
+const categoryColor = {
+    '房貸': '#4f46e5', '車貸': '#0ea5e9', '學費': '#8b5cf6', '水電瓦斯': '#f59e0b',
+    '信用卡': '#ec4899', '餐飲': '#e11d48', '日常用品': '#059669', '交通': '#06b6d4',
+    '購物': '#d946ef', '娛樂': '#6366f1', '帳務校正': '#64748b',
+    '薪水': '#059669', '獎金': '#f59e0b', '投資獲利': '#10b981', '利息': '#3b82f6'
 };
 
 let state = {
@@ -267,15 +274,19 @@ function renderTransactions(txList) {
         const isExpense = tx.type === 'expense';
         const typeClass = isExpense ? 'expense' : 'income';
         const sign = isExpense ? '-' : '+';
-        const emoji = categoryEmoji[tx.category] || '📋';
-        const payerEmoji = tx.payer === '揚' ? '👨' : '👩';
+        const icon = categoryIcon[tx.category] || 'fa-receipt';
+        const color = categoryColor[tx.category] || '#64748b';
+        const payerIcon = tx.payer === '揚' ? 'fa-mars' : 'fa-venus';
+        const payerColor = tx.payer === '揚' ? '#3b82f6' : '#ec4899';
 
         return `
             <div class="tx-item card">
                 <div class="tx-info">
-                    <div class="tx-icon-emoji">${emoji}</div>
+                    <div class="tx-icon-svg" style="background:${color}15;color:${color}">
+                        <i class="fa-solid ${icon}"></i>
+                    </div>
                     <div class="tx-details">
-                        <h4>${tx.category} <span class="payer-badge badge-${tx.payer}">${payerEmoji} ${tx.payer}</span></h4>
+                        <h4>${tx.category} <span class="payer-badge" style="background:${payerColor}15;color:${payerColor}"><i class="fa-solid ${payerIcon}"></i> ${tx.payer}</span></h4>
                         <p>${tx.date} ${tx.note ? '· ' + tx.note : ''}</p>
                     </div>
                 </div>
@@ -415,7 +426,7 @@ function updateChart() {
         expenseChart.data.datasets[0].data = [1];
         expenseChart.data.datasets[0].backgroundColor = ['#e2e8f0'];
     } else {
-        expenseChart.data.labels = labels.map(l => (categoryEmoji[l] || '') + ' ' + l);
+        expenseChart.data.labels = labels;
         expenseChart.data.datasets[0].data = data;
         expenseChart.data.datasets[0].backgroundColor = chartColors.slice(0, labels.length);
     }
