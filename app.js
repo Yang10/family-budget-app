@@ -142,6 +142,10 @@ function switchTab(tabId) {
     const titles = { record: '日常收支', dashboard: '本月報表', inventory: '資產盤點' };
     document.getElementById('header-title').textContent = titles[tabId] || '日常收支';
 
+    // 盤點頁隱藏本月結餘
+    const balanceDisplay = document.querySelector('.balance-display');
+    if (balanceDisplay) balanceDisplay.style.display = tabId === 'inventory' ? 'none' : 'flex';
+
     if (tabId === 'dashboard') updateChart();
 }
 
