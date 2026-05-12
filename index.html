@@ -12,7 +12,7 @@
     <title>Family Budget App</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=20260512e">
+    <link rel="stylesheet" href="style.css?v=20260512f">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -56,10 +56,17 @@
                         <i class="fa-solid fa-plus"></i> 記收入
                     </button>
                 </div>
+                <button class="btn btn-outline full-width" onclick="copyLastMonth()">
+                    <i class="fa-solid fa-copy"></i> 複製上月固定支出
+                </button>
                 
+                <div class="search-bar">
+                    <i class="fa-solid fa-search"></i>
+                    <input type="text" id="tx-search" placeholder="搜尋分類或備註..." oninput="filterTransactions()">
+                </div>
+
                 <h3 class="section-title">最近紀錄</h3>
                 <div class="transaction-list" id="recent-transactions">
-                    <!-- Transactions will be loaded here via JS -->
                 </div>
             </section>
 
@@ -108,14 +115,16 @@
 
             <!-- Tab 3: 盤點 (Inventory) -->
             <section id="tab-inventory" class="tab-pane">
-                <div class="inventory-header">
-                    <p class="inventory-subtitle">定期更新資產，掌握真實財富</p>
-                    <h2 class="net-worth-total" id="net-worth-total">$0</h2>
-                    <span class="inventory-date">最後更新: <span id="last-inventory-date">從未</span></span>
+                <div class="inventory-header" style="text-align:center;padding:8px 0">
+                    <span class="inventory-date" style="color:var(--text-muted);font-size:0.85rem">最後更新: <span id="last-inventory-date">從未</span></span>
+                </div>
+
+                <!-- 淨資產走勢圖 -->
+                <div class="chart-container card" style="height:220px">
+                    <canvas id="netWorthChart"></canvas>
                 </div>
                 
                 <div class="account-list" id="account-list">
-                    <!-- Accounts will be loaded here via JS -->
                 </div>
                 
                 <div class="add-account-section" style="display:none">
@@ -128,6 +137,13 @@
                 </button>
                 <button class="btn btn-secondary full-width" id="btn-edit-inventory" onclick="toggleInventoryEdit()">
                     <i class="fa-solid fa-pen-to-square"></i> 編輯盤點
+                </button>
+
+                <!-- 儲蓄目標 -->
+                <h3 class="section-title" style="margin-top:24px">🎯 儲蓄目標</h3>
+                <div id="goals-list"></div>
+                <button class="btn btn-outline full-width" onclick="openGoalModal()">
+                    <i class="fa-solid fa-plus"></i> 新增目標
                 </button>
             </section>
         </main>
@@ -200,6 +216,31 @@
         </div>
     </div>
 
-    <script src="app.js?v=20260512e"></script>
+    <!-- Goal Modal -->
+    <div class="modal-overlay" id="goal-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>🎯 新增儲蓄目標</h3>
+                <button class="close-btn" onclick="closeGoalModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <form onsubmit="handleGoalSubmit(event)">
+                <div class="form-group">
+                    <label>目標名稱</label>
+                    <input type="text" id="goal-name" placeholder="例如：旅遊基金" required>
+                </div>
+                <div class="form-group">
+                    <label>目標金額</label>
+                    <input type="number" id="goal-target" placeholder="100000" inputmode="numeric" required>
+                </div>
+                <div class="form-group">
+                    <label>目前已存金額</label>
+                    <input type="number" id="goal-current" placeholder="30000" inputmode="numeric" required>
+                </div>
+                <button type="submit" class="btn btn-primary full-width">儲存目標</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="app.js?v=20260512f"></script>
 </body>
 </html>

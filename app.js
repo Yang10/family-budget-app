@@ -44,7 +44,9 @@ const categoryEmoji = {
 let state = {
     transactions: [],
     accounts: [],
-    lastInventoryDate: null
+    lastInventoryDate: null,
+    inventoryHistory: [],
+    savingsGoals: []
 };
 
 // 報表狀態
@@ -114,6 +116,8 @@ async function loadData() {
     renderTransactions();
     updateDashboard();
     renderInventory();
+    initNetWorthChart();
+    renderGoals();
     showLoading(false);
 }
 
@@ -121,6 +125,8 @@ function loadFromLocal() {
     state.transactions = JSON.parse(localStorage.getItem('fb_transactions')) || [];
     state.accounts = JSON.parse(localStorage.getItem('fb_accounts')) || defaultAccounts;
     state.lastInventoryDate = localStorage.getItem('fb_last_inventory') || null;
+    state.inventoryHistory = JSON.parse(localStorage.getItem('fb_inventory_history')) || [];
+    state.savingsGoals = JSON.parse(localStorage.getItem('fb_savings_goals')) || [];
 }
 
 // ==========================================
@@ -150,15 +156,23 @@ function switchTab(tabId) {
     document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
     document.getElementById(`tab-${tabId}`).classList.add('active');
 
-    // 更新 Header 標題
     const titles = { record: '日常收支', dashboard: '本月報表', inventory: '資產盤點' };
     document.getElementById('header-title').textContent = titles[tabId] || '日常收支';
 
-    // 盤點頁隱藏本月結餘
     const balanceDisplay = document.querySelector('.balance-display');
-    if (balanceDisplay) balanceDisplay.style.display = tabId === 'inventory' ? 'none' : 'flex';
-
-    if (tabId === 'dashboard') updateChart();
+    if (balanceDisplay) {
+        if (tabId === 'inventory') {
+            // 盤點頁：顯示總資產
+            const total = state.accounts.reduce((sum, a) => sum + a.balance, 0);
+            document.getElementById('current-month-balance').textContent = `$${total.toLocaleString()}`;
+            document.querySelector('.balance-label').textContent = '總資產淨值';
+            balanceDisplay.style.display = 'flex';
+        } else {
+            document.querySelector('.balance-label').textContent = '本月結餘';
+            balanceDisplay.style.display = 'flex';
+            if (tabId === 'dashboard') { updateDashboard(); }
+        }
+    }
 }
 
 function openModal(type) {
@@ -239,9 +253,10 @@ function deleteTransaction(id) {
 // ==========================================
 // 8. 渲染記帳列表
 // ==========================================
-function renderTransactions() {
+function renderTransactions(txList) {
     const list = document.getElementById('recent-transactions');
-    const sortedTx = [...state.transactions].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 20);
+    const source = txList || state.transactions;
+    const sortedTx = [...source].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 30);
 
     if (sortedTx.length === 0) {
         list.innerHTML = '<p style="text-align:center; color:var(--text-muted); padding: 20px;">尚無紀錄，開始記帳吧！</p>';
@@ -450,7 +465,7 @@ function renderInventory() {
         `;
     }).join('');
 
-    document.getElementById('net-worth-total').textContent = `$${total.toLocaleString()}`;
+    document.getElementById('current-month-balance').textContent = `$${total.toLocaleString()}`;
 
     const addSection = document.querySelector('.add-account-section');
     const saveBtn = document.getElementById('btn-save-inventory');
@@ -476,7 +491,7 @@ function updateAccountBalance(input) {
     const acc = state.accounts.find(a => a.id === id);
     if (acc) acc.balance = value;
     let total = state.accounts.reduce((sum, a) => sum + a.balance, 0);
-    document.getElementById('net-worth-total').textContent = `$${total.toLocaleString()}`;
+    document.getElementById('current-month-balance').textContent = `$${total.toLocaleString()}`;
 }
 
 function addNewAccount() {
@@ -511,38 +526,186 @@ function saveInventory() {
         lastInventoryDate: state.lastInventoryDate
     });
     showToast('✅ 盤點已儲存！', 'success');
+
+    // 記錄歷史淨資產
+    const total = state.accounts.reduce((sum, a) => sum + a.balance, 0);
+    const today = new Date().toISOString().slice(0, 10);
+    const existing = state.inventoryHistory.findIndex(h => h.date === today);
+    if (existing >= 0) {
+        state.inventoryHistory[existing].total = total;
+    } else {
+        state.inventoryHistory.push({ date: today, total });
+    }
+    saveLocalData();
+    renderNetWorthChart();
 }
 
+// ==========================================
+// 11. 搜尋與篩選
+// ==========================================
+function filterTransactions() {
+    const keyword = document.getElementById('tx-search').value.trim().toLowerCase();
+    if (!keyword) { renderTransactions(); return; }
+    const filtered = state.transactions.filter(tx =>
+        tx.category.toLowerCase().includes(keyword) ||
+        (tx.note && tx.note.toLowerCase().includes(keyword)) ||
+        (tx.payer && tx.payer.toLowerCase().includes(keyword))
+    );
+    renderTransactions(filtered);
+}
 
 // ==========================================
-// 11. 匯出 CSV 功能
+// 12. 複製上月固定支出
 // ==========================================
-function exportToCSV() {
-    if (!state.transactions || state.transactions.length === 0) {
-        alert('目前沒有任何記帳紀錄可匯出！');
+const fixedCategories = ['房貸', '車貸', '學費', '水電瓦斯', '信用卡'];
+
+function copyLastMonth() {
+    const now = new Date();
+    let targetMonth = now.getMonth() - 1;
+    let targetYear = now.getFullYear();
+    if (targetMonth < 0) { targetMonth = 11; targetYear--; }
+
+    const lastMonthFixed = state.transactions.filter(tx => {
+        const d = new Date(tx.date);
+        return tx.type === 'expense' && fixedCategories.includes(tx.category) &&
+               d.getMonth() === targetMonth && d.getFullYear() === targetYear;
+    });
+
+    if (lastMonthFixed.length === 0) {
+        showToast('⚠️ 上月沒有固定支出可複製', 'warning');
         return;
     }
 
-    let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
-    csvContent += "日期,類型,分類,記帳人,金額,備註\n";
+    if (!confirm(`將複製 ${lastMonthFixed.length} 筆上月固定支出到本月，確定嗎？`)) return;
 
-    const sortedTx = [...state.transactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+    const thisMonth = now.getMonth() + 1;
+    const thisYear = now.getFullYear();
+    const dateStr = `${thisYear}-${String(thisMonth).padStart(2,'0')}-05`;
 
-    sortedTx.forEach(tx => {
-        const typeStr = tx.type === 'expense' ? '支出' : '收入';
-        const note = tx.note ? tx.note.replace(/,/g, "，").replace(/\n/g, " ") : "";
-        const row = `${tx.date},${typeStr},${tx.category},${tx.payer},${tx.amount},${note}`;
-        csvContent += row + "\n";
+    lastMonthFixed.forEach(tx => {
+        const newTx = {
+            id: 'tx_' + Date.now() + Math.random().toString(36).slice(2, 5),
+            type: 'expense',
+            amount: tx.amount,
+            category: tx.category,
+            date: dateStr,
+            note: tx.note || '',
+            payer: tx.payer,
+            timestamp: new Date().toISOString()
+        };
+        state.transactions.unshift(newTx);
+        syncToSheets('addTransaction', { data: newTx });
     });
 
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    const currentMonth = new Date().toISOString().slice(0, 7);
-    link.setAttribute("download", `家庭記帳明細_${currentMonth}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    saveLocalData();
+    renderTransactions();
+    updateDashboard();
+    showToast(`✅ 已複製 ${lastMonthFixed.length} 筆固定支出`, 'success');
+}
+
+// ==========================================
+// 13. 淨資產走勢圖
+// ==========================================
+let netWorthChart = null;
+
+function initNetWorthChart() {
+    const ctx = document.getElementById('netWorthChart');
+    if (!ctx) return;
+    netWorthChart = new Chart(ctx.getContext('2d'), {
+        type: 'line',
+        data: { labels: [], datasets: [{
+            label: '淨資產',
+            data: [],
+            borderColor: '#8b5cf6',
+            backgroundColor: 'rgba(139, 92, 246, 0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 4,
+            pointBackgroundColor: '#8b5cf6'
+        }] },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: {
+                title: { display: true, text: '淨資產走勢', color: '#1e293b' },
+                legend: { display: false }
+            },
+            scales: {
+                x: { grid: { display: false } },
+                y: { beginAtZero: false, ticks: { callback: v => (v/10000).toFixed(0)+'萬' } }
+            }
+        }
+    });
+    renderNetWorthChart();
+}
+
+function renderNetWorthChart() {
+    if (!netWorthChart) return;
+    const history = state.inventoryHistory.sort((a, b) => a.date.localeCompare(b.date));
+    if (history.length === 0) {
+        netWorthChart.data.labels = ['尚無資料'];
+        netWorthChart.data.datasets[0].data = [0];
+    } else {
+        netWorthChart.data.labels = history.map(h => h.date.slice(5));
+        netWorthChart.data.datasets[0].data = history.map(h => h.total);
+    }
+    netWorthChart.update();
+}
+
+// ==========================================
+// 14. 儲蓄目標
+// ==========================================
+function renderGoals() {
+    const list = document.getElementById('goals-list');
+    if (!list) return;
+    if (!state.savingsGoals || state.savingsGoals.length === 0) {
+        list.innerHTML = '<p style="text-align:center;color:var(--text-muted);padding:12px;font-size:0.9rem">尚未設定目標</p>';
+        return;
+    }
+    list.innerHTML = state.savingsGoals.map(g => {
+        const pct = Math.min(100, Math.round((g.current / g.target) * 100));
+        const color = pct >= 80 ? '#059669' : pct >= 50 ? '#f59e0b' : '#e11d48';
+        return `
+            <div class="goal-card card">
+                <div class="goal-header">
+                    <span class="goal-name">🎯 ${g.name}</span>
+                    <button class="tx-delete-btn" onclick="deleteGoal('${g.id}')" title="刪除"><i class="fa-solid fa-trash-can"></i></button>
+                </div>
+                <div class="goal-amounts">$${g.current.toLocaleString()} / $${g.target.toLocaleString()} (${pct}%)</div>
+                <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div>
+            </div>
+        `;
+    }).join('');
+}
+
+function openGoalModal() {
+    document.getElementById('goal-modal').classList.add('active');
+}
+function closeGoalModal() {
+    document.getElementById('goal-modal').classList.remove('active');
+}
+
+function handleGoalSubmit(e) {
+    e.preventDefault();
+    const name = document.getElementById('goal-name').value.trim();
+    const target = parseInt(document.getElementById('goal-target').value) || 0;
+    const current = parseInt(document.getElementById('goal-current').value) || 0;
+    if (!name || !target) return;
+
+    state.savingsGoals.push({ id: 'goal_' + Date.now(), name, target, current });
+    saveLocalData();
+    renderGoals();
+    closeGoalModal();
+    document.getElementById('goal-name').value = '';
+    document.getElementById('goal-target').value = '';
+    document.getElementById('goal-current').value = '';
+    showToast('✅ 目標已新增', 'success');
+}
+
+function deleteGoal(id) {
+    if (!confirm('確定刪除這個目標嗎？')) return;
+    state.savingsGoals = state.savingsGoals.filter(g => g.id !== id);
+    saveLocalData();
+    renderGoals();
 }
 
 // ==========================================
@@ -551,6 +714,8 @@ function exportToCSV() {
 function saveLocalData() {
     localStorage.setItem('fb_transactions', JSON.stringify(state.transactions));
     localStorage.setItem('fb_accounts', JSON.stringify(state.accounts));
+    localStorage.setItem('fb_inventory_history', JSON.stringify(state.inventoryHistory || []));
+    localStorage.setItem('fb_savings_goals', JSON.stringify(state.savingsGoals || []));
     if (state.lastInventoryDate) {
         localStorage.setItem('fb_last_inventory', state.lastInventoryDate);
     }

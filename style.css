@@ -641,3 +641,69 @@ h1 {
     border-color: var(--primary);
     color: var(--primary);
 }
+
+/* Search Bar */
+.search-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 10px 16px;
+    margin: 12px 0;
+}
+.search-bar i { color: var(--text-muted); font-size: 0.9rem; }
+.search-bar input {
+    border: none; background: none; flex: 1;
+    font-size: 0.95rem; color: var(--text-main); outline: none;
+}
+
+/* Outline Button */
+.btn-outline {
+    background: transparent;
+    border: 1.5px dashed var(--border);
+    color: var(--text-muted);
+    padding: 10px 20px;
+    border-radius: var(--radius-md);
+    font-weight: 500;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin: 8px 0;
+}
+.btn-outline:active {
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+/* Goal Card */
+.goal-card {
+    padding: 16px;
+    margin-bottom: 12px;
+}
+.goal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+}
+.goal-name { font-weight: 600; font-size: 1rem; }
+.goal-amounts {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+/* Progress Bar */
+.progress-bar {
+    height: 8px;
+    background: var(--bg-main);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.progress-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
