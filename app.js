@@ -5,7 +5,7 @@
 const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwAcAkqzooVTI9E0uAEvM6Yl6iLwqs69l-eQMWFd4SrvopphazrsZnWciT8CQ61b0r5/exec";
 
 // 安全鎖設定
-const SECURITY_PIN = "1234"; // 您可以在這裡修改您的 4 位數密碼
+const SECURITY_PIN = "1991";
 
 // ==========================================
 // 2. 系統變數與初始化
