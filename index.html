@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <meta name="theme-color" content="#ffffff">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -12,8 +15,13 @@
     <title>Family Budget App</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=20260512f">
+    <link rel="stylesheet" id="app-css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // 自動版本號：用當天日期當版本，每天自動更新快取
+        var v = new Date().toISOString().slice(0,10).replace(/-/g,'');
+        document.getElementById('app-css').href = 'style.css?v=' + v;
+    </script>
 </head>
 <body>
     <div class="app-container">
@@ -241,6 +249,11 @@
         </div>
     </div>
 
-    <script src="app.js?v=20260512f"></script>
+    <script>
+        // 自動版本號載入 app.js
+        var s = document.createElement('script');
+        s.src = 'app.js?v=' + new Date().toISOString().slice(0,10).replace(/-/g,'');
+        document.body.appendChild(s);
+    </script>
 </body>
 </html>
