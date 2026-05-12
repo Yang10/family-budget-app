@@ -12,7 +12,7 @@
     <title>Family Budget App</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css?v=20260512">
+    <link rel="stylesheet" href="style.css?v=20260512b">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -84,9 +84,6 @@
                     </div>
                 </div>
                 
-                <button class="btn btn-secondary full-width" style="margin-top: 16px;" onclick="exportToCSV()">
-                    <i class="fa-solid fa-file-csv"></i> 匯出明細為 CSV (可存入 Excel)
-                </button>
             </section>
 
             <!-- Tab 3: 盤點 (Inventory) -->
@@ -154,7 +151,7 @@
                     
                     <div class="form-group">
                         <label for="tx-amount">金額</label>
-                        <input type="number" id="tx-amount" placeholder="0" required min="1">
+                        <input type="number" id="tx-amount" placeholder="0" required min="1" inputmode="numeric" pattern="[0-9]*">
                     </div>
                     
                     <div class="form-group">
@@ -180,6 +177,6 @@
         </div>
     </div>
 
-    <script src="app.js?v=20260512"></script>
+    <script src="app.js?v=20260512b"></script>
 </body>
 </html>
