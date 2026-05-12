@@ -77,7 +77,15 @@ function isSheetsConfigured() {
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('tx-date').valueAsDate = new Date();
     initChart();
+    setAppHeight();
 });
+
+// 動態計算螢幕高度（修正 iOS Safari 底部空白）
+function setAppHeight() {
+    document.documentElement.style.setProperty('--app-height', window.innerHeight + 'px');
+}
+window.addEventListener('resize', setAppHeight);
+window.addEventListener('orientationchange', () => setTimeout(setAppHeight, 100));
 
 // ==========================================
 // 3. 安全鎖邏輯

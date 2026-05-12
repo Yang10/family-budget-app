@@ -23,17 +23,13 @@
 }
 
 body {
-    background-color: var(--bg-main);
+    background-color: #e2e8f0;
     color: var(--text-main);
     display: flex;
     justify-content: center;
     height: 100vh;
-    height: 100dvh;
+    height: var(--app-height, 100vh);
     overflow: hidden;
-}
-
-@media (min-width: 481px) {
-    body { background-color: #e2e8f0; }
 }
 
 .app-container {
