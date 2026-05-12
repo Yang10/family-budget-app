@@ -56,6 +56,13 @@ let state = {
     savingsGoals: []
 };
 
+// 日期格式化
+function formatDate(dateStr) {
+    const d = new Date(dateStr);
+    if (isNaN(d)) return dateStr;
+    return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+}
+
 // 報表狀態
 let selectedYear = new Date().getFullYear();
 let selectedMonth = new Date().getMonth();
@@ -287,7 +294,7 @@ function renderTransactions(txList) {
                     </div>
                     <div class="tx-details">
                         <h4>${tx.category} <span class="payer-badge" style="background:${payerColor}15;color:${payerColor}"><i class="fa-solid ${payerIcon}"></i> ${tx.payer}</span></h4>
-                        <p>${tx.date} ${tx.note ? '· ' + tx.note : ''}</p>
+                        <p>${formatDate(tx.date)} ${tx.note ? '· ' + tx.note : ''}</p>
                     </div>
                 </div>
                 <div class="tx-amount-group">
