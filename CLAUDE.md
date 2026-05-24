@@ -1,6 +1,8 @@
 # Family Budget App
 
-簡單的家庭記帳 PWA — 純前端 (HTML/CSS/JS)，資料同步到 Google Sheets，部署在 Netlify。
+簡單的家庭記帳 PWA — 純前端 (HTML/CSS/JS)，資料同步到 Google Sheets，部署在 GitHub Pages。
+
+**線上網址**：https://yang10.github.io/family-budget-app/
 
 ## 技術棧
 
@@ -10,7 +12,7 @@
   - 主要：Google Apps Script Web App → Google Sheets (`SCRIPT_URL` 在 [app.js:5](app.js:5))
   - 離線備份：`localStorage`（key prefix `fb_`）
 - **PWA**：`manifest.json` + apple-touch-icon
-- **部署**：Netlify（push 到 GitHub `main` 自動部署）
+- **部署**：GitHub Pages（push 到 `main` 自動部署，~30 秒）
 
 ## 檔案結構
 
@@ -18,7 +20,6 @@
 - [app.js](app.js) — 所有業務邏輯（state、render、Google Sheets 同步）
 - [style.css](style.css) — 樣式
 - [manifest.json](manifest.json) — PWA manifest
-- [netlify.toml](netlify.toml) — 強制 no-cache headers
 
 ## 重要慣例
 
@@ -38,7 +39,7 @@
 ## 工作流程
 
 1. 改完 → `git add` → `git commit` → `git push origin main`
-2. Netlify 自動部署（~1 分鐘）
+2. GitHub Pages 自動部署（~30 秒，可用 `gh api /repos/Yang10/family-budget-app/pages/builds/latest` 查狀態）
 3. 因為有 `?v=YYYYMMDD`，使用者隔天打開會自動拿新版
 
 ## 開發注意事項
