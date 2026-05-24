@@ -118,7 +118,6 @@ function initApp() {
     if (dateInput) dateInput.valueAsDate = new Date();
     bindDynamicActions();
     initChart();
-    setAppHeight();
 }
 
 if (document.readyState === 'loading') {
@@ -148,14 +147,7 @@ function bindDynamicActions() {
     });
 }
 
-// 動態計算螢幕高度（修正 iOS Safari 底部空白）
-function setAppHeight() {
-    const h = window.innerHeight + 'px';
-    document.documentElement.style.height = h;
-    document.body.style.height = h;
-}
-window.addEventListener('resize', setAppHeight);
-window.addEventListener('orientationchange', () => setTimeout(setAppHeight, 100));
+// (已改用 .app-container { position:fixed; top:0; bottom:0 } 處理高度, 不再需要 setAppHeight)
 
 // ==========================================
 // 3. 安全鎖邏輯
