@@ -56,6 +56,42 @@ let state = {
     savingsGoals: []
 };
 
+const CLOUD_FETCH_TIMEOUT_MS = 10000;
+let activeTab = 'record';
+let appInitialized = false;
+let expenseChart = null;
+let yearlyChart = null;
+let netWorthChart = null;
+
+function cloneDefaultAccounts() {
+    return defaultAccounts.map(account => ({ ...account }));
+}
+
+function safeParseJSON(raw, fallback) {
+    if (!raw) return fallback;
+    try {
+        const parsed = JSON.parse(raw);
+        return parsed ?? fallback;
+    } catch (error) {
+        console.warn('本機資料格式錯誤，已改用預設值:', error);
+        return fallback;
+    }
+}
+
+function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    }[char]));
+}
+
+function toAmount(value) {
+    return Number.isFinite(Number(value)) ? Number(value) : 0;
+}
+
 // 日期格式化
 function formatDate(dateStr) {
     const d = new Date(dateStr);
@@ -74,11 +110,43 @@ function isSheetsConfigured() {
 }
 
 // 初始化
-document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('tx-date').valueAsDate = new Date();
+function initApp() {
+    if (appInitialized) return;
+    appInitialized = true;
+
+    const dateInput = document.getElementById('tx-date');
+    if (dateInput) dateInput.valueAsDate = new Date();
+    bindDynamicActions();
     initChart();
     setAppHeight();
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+} else {
+    initApp();
+}
+
+function bindDynamicActions() {
+    document.getElementById('recent-transactions')?.addEventListener('click', e => {
+        const button = e.target.closest('[data-delete-tx-id]');
+        if (button) deleteTransaction(button.dataset.deleteTxId);
+    });
+
+    document.getElementById('account-list')?.addEventListener('click', e => {
+        const button = e.target.closest('[data-delete-account-id]');
+        if (button) deleteAccount(button.dataset.deleteAccountId);
+    });
+
+    document.getElementById('account-list')?.addEventListener('input', e => {
+        if (e.target.matches('.account-input')) updateAccountBalance(e.target);
+    });
+
+    document.getElementById('goals-list')?.addEventListener('click', e => {
+        const button = e.target.closest('[data-delete-goal-id]');
+        if (button) deleteGoal(button.dataset.deleteGoalId);
+    });
+}
 
 // 動態計算螢幕高度（修正 iOS Safari 底部空白）
 function setAppHeight() {
@@ -115,28 +183,33 @@ document.getElementById('pin-input')?.addEventListener('keypress', function(e) {
 // ==========================================
 async function loadData() {
     showLoading(true);
+    const localData = readLocalData();
 
     if (isSheetsConfigured()) {
         try {
-            const response = await fetch(SCRIPT_URL);
+            const response = await fetchWithTimeout(SCRIPT_URL);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const data = await response.json();
 
-            state.transactions = data.transactions || [];
-            state.accounts = (data.accounts && data.accounts.length > 0) ? data.accounts : defaultAccounts;
-            state.lastInventoryDate = data.lastInventoryDate || null;
+            state.transactions = Array.isArray(data.transactions) ? data.transactions : localData.transactions;
+            state.accounts = (Array.isArray(data.accounts) && data.accounts.length > 0) ? data.accounts : localData.accounts;
+            state.lastInventoryDate = data.lastInventoryDate || localData.lastInventoryDate;
+            state.inventoryHistory = Array.isArray(data.inventoryHistory) ? data.inventoryHistory : localData.inventoryHistory;
+            state.savingsGoals = Array.isArray(data.savingsGoals) ? data.savingsGoals : localData.savingsGoals;
 
             // 同步到 localStorage 作為離線備份
             saveLocalData();
         } catch (error) {
             console.error("雲端載入失敗:", error);
-            loadFromLocal();
+            applyLoadedData(localData);
             showToast('⚠️ 無法連線雲端，顯示本機快取', 'warning');
         }
     } else {
-        loadFromLocal();
+        applyLoadedData(localData);
         showToast('ℹ️ 尚未連結 Google 試算表，使用本機儲存', 'info');
     }
 
+    autoSelectLatestMonth();
     renderTransactions();
     updateDashboard();
     renderInventory();
@@ -145,12 +218,37 @@ async function loadData() {
     showLoading(false);
 }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = CLOUD_FETCH_TIMEOUT_MS) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+function readLocalData() {
+    const accounts = safeParseJSON(localStorage.getItem('fb_accounts'), cloneDefaultAccounts());
+    return {
+        transactions: safeParseJSON(localStorage.getItem('fb_transactions'), []),
+        accounts: Array.isArray(accounts) && accounts.length > 0 ? accounts : cloneDefaultAccounts(),
+        lastInventoryDate: localStorage.getItem('fb_last_inventory') || null,
+        inventoryHistory: safeParseJSON(localStorage.getItem('fb_inventory_history'), []),
+        savingsGoals: safeParseJSON(localStorage.getItem('fb_savings_goals'), [])
+    };
+}
+
+function applyLoadedData(data) {
+    state.transactions = Array.isArray(data.transactions) ? data.transactions : [];
+    state.accounts = Array.isArray(data.accounts) && data.accounts.length > 0 ? data.accounts : cloneDefaultAccounts();
+    state.lastInventoryDate = data.lastInventoryDate || null;
+    state.inventoryHistory = Array.isArray(data.inventoryHistory) ? data.inventoryHistory : [];
+    state.savingsGoals = Array.isArray(data.savingsGoals) ? data.savingsGoals : [];
+}
+
 function loadFromLocal() {
-    state.transactions = JSON.parse(localStorage.getItem('fb_transactions')) || [];
-    state.accounts = JSON.parse(localStorage.getItem('fb_accounts')) || defaultAccounts;
-    state.lastInventoryDate = localStorage.getItem('fb_last_inventory') || null;
-    state.inventoryHistory = JSON.parse(localStorage.getItem('fb_inventory_history')) || [];
-    state.savingsGoals = JSON.parse(localStorage.getItem('fb_savings_goals')) || [];
+    applyLoadedData(readLocalData());
 }
 
 // ==========================================
@@ -160,10 +258,11 @@ async function syncToSheets(action, payload) {
     if (!isSheetsConfigured()) return;
 
     try {
-        await fetch(SCRIPT_URL, {
+        const response = await fetchWithTimeout(SCRIPT_URL, {
             method: 'POST',
             body: JSON.stringify({ action, ...payload })
         });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
     } catch (error) {
         console.error("同步失敗:", error);
         showToast('⚠️ 雲端同步失敗，資料已暫存本機', 'warning');
@@ -173,9 +272,10 @@ async function syncToSheets(action, payload) {
 // ==========================================
 // 6. UI 控制 (頁籤與 Modal)
 // ==========================================
-function switchTab(tabId) {
+function switchTab(tabId, trigger) {
+    activeTab = tabId;
     document.querySelectorAll('.nav-item').forEach(btn => btn.classList.remove('active'));
-    event.currentTarget.classList.add('active');
+    if (trigger) trigger.classList.add('active');
 
     document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
     document.getElementById(`tab-${tabId}`).classList.add('active');
@@ -183,20 +283,10 @@ function switchTab(tabId) {
     const titles = { record: '日常收支', dashboard: '本月報表', inventory: '資產盤點' };
     document.getElementById('header-title').textContent = titles[tabId] || '日常收支';
 
-    const balanceDisplay = document.querySelector('.balance-display');
-    if (balanceDisplay) {
-        if (tabId === 'inventory') {
-            // 盤點頁：顯示總資產
-            const total = state.accounts.reduce((sum, a) => sum + a.balance, 0);
-            document.getElementById('current-month-balance').textContent = `$${total.toLocaleString()}`;
-            document.querySelector('.balance-label').textContent = '總資產淨值';
-            balanceDisplay.style.display = 'flex';
-        } else {
-            document.querySelector('.balance-label').textContent = '本月結餘';
-            balanceDisplay.style.display = 'flex';
-            if (tabId === 'dashboard') { updateDashboard(); }
-        }
-    }
+    if (tabId === 'dashboard') updateDashboard();
+    if (tabId === 'inventory') renderInventory();
+    updateHeaderBalance();
+    resizeActiveCharts();
 }
 
 function openModal(type) {
@@ -205,7 +295,10 @@ function openModal(type) {
     document.getElementById('modal-title').style.color = type === 'expense' ? 'var(--expense)' : 'var(--income)';
 
     const select = document.getElementById('tx-category');
-    select.innerHTML = categories[type].map(cat => `<option value="${cat}">${cat}</option>`).join('');
+    select.innerHTML = (categories[type] || []).map(cat => {
+        const safeCat = escapeHtml(cat);
+        return `<option value="${safeCat}">${safeCat}</option>`;
+    }).join('');
 
     document.getElementById('transaction-modal').classList.add('active');
 }
@@ -223,10 +316,15 @@ function handleTransactionSubmit(e) {
     e.preventDefault();
 
     const type = document.getElementById('tx-type').value;
-    const amount = parseInt(document.getElementById('tx-amount').value);
+    const amount = toAmount(document.getElementById('tx-amount').value);
     const category = document.getElementById('tx-category').value;
     const date = document.getElementById('tx-date').value;
     const note = document.getElementById('tx-note').value;
+
+    if (amount <= 0) {
+        showToast('⚠️ 請輸入有效金額', 'warning');
+        return;
+    }
 
     // 取得選中的記帳人
     let payer = "揚";
@@ -280,50 +378,121 @@ function deleteTransaction(id) {
 function renderTransactions(txList) {
     const list = document.getElementById('recent-transactions');
     const source = txList || state.transactions;
-    const sortedTx = [...source].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 30);
+    const sortedTx = [...source].sort(compareTransactionsDesc);
 
     if (sortedTx.length === 0) {
         list.innerHTML = '<p style="text-align:center; color:var(--text-muted); padding: 20px;">尚無紀錄，開始記帳吧！</p>';
         return;
     }
 
-    list.innerHTML = sortedTx.map(tx => {
-        const isExpense = tx.type === 'expense';
-        const typeClass = isExpense ? 'expense' : 'income';
-        const sign = isExpense ? '-' : '+';
-        const icon = categoryIcon[tx.category] || 'fa-receipt';
-        const color = categoryColor[tx.category] || '#64748b';
-        const payerIcon = tx.payer === '揚' ? 'fa-mars' : 'fa-venus';
-        const payerColor = tx.payer === '揚' ? '#3b82f6' : '#ec4899';
+    const monthGroups = groupTransactionsByMonth(sortedTx);
+    list.innerHTML = monthGroups.map(group => renderMonthGroup(group)).join('');
+}
 
-        return `
-            <div class="tx-item card">
-                <div class="tx-info">
-                    <div class="tx-icon-svg" style="background:${color}15;color:${color}">
-                        <i class="fa-solid ${icon}"></i>
-                    </div>
-                    <div class="tx-details">
-                        <h4>${tx.category} <span class="payer-badge" style="background:${payerColor}15;color:${payerColor}"><i class="fa-solid ${payerIcon}"></i> ${tx.payer}</span></h4>
-                        <p>${formatDate(tx.date)} ${tx.note ? '· ' + tx.note : ''}</p>
-                    </div>
+function compareTransactionsDesc(a, b) {
+    const dateDiff = getTransactionTime(b) - getTransactionTime(a);
+    if (dateDiff !== 0) return dateDiff;
+    return getTransactionTimestamp(b) - getTransactionTimestamp(a);
+}
+
+function getTransactionTime(tx) {
+    const time = new Date(tx.date).getTime();
+    return Number.isFinite(time) ? time : 0;
+}
+
+function getTransactionTimestamp(tx) {
+    const time = new Date(tx.timestamp || tx.date).getTime();
+    return Number.isFinite(time) ? time : 0;
+}
+
+function groupTransactionsByMonth(transactions) {
+    const groups = [];
+    const groupMap = new Map();
+
+    transactions.forEach(tx => {
+        const d = new Date(tx.date);
+        const key = isNaN(d) ? 'unknown' : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const title = isNaN(d) ? '未設定日期' : `${d.getFullYear()}年${d.getMonth() + 1}月`;
+
+        if (!groupMap.has(key)) {
+            const group = { key, title, transactions: [], income: 0, expense: 0 };
+            groupMap.set(key, group);
+            groups.push(group);
+        }
+
+        const group = groupMap.get(key);
+        const amount = toAmount(tx.amount);
+        group.transactions.push(tx);
+        if (tx.type === 'income') group.income += amount;
+        if (tx.type === 'expense') group.expense += amount;
+    });
+
+    return groups;
+}
+
+function renderMonthGroup(group) {
+    const balance = group.income - group.expense;
+    const balanceClass = balance >= 0 ? 'income-text' : 'expense-text';
+
+    return `
+        <section class="tx-month-group">
+            <div class="tx-month-header">
+                <div>
+                    <h4>${escapeHtml(group.title)}</h4>
+                    <span>${group.transactions.length} 筆紀錄</span>
                 </div>
-                <div class="tx-amount-group">
-                    <span class="tx-amount ${typeClass}-text">${sign}$${tx.amount.toLocaleString()}</span>
-                    <button class="tx-delete-btn" onclick="deleteTransaction('${tx.id}')" title="刪除此紀錄">
-                        <i class="fa-solid fa-trash-can"></i>
-                    </button>
+                <div class="tx-month-summary">
+                    <span class="month-stat income-text">收入 $${group.income.toLocaleString()}</span>
+                    <span class="month-stat expense-text">支出 $${group.expense.toLocaleString()}</span>
+                    <span class="month-stat ${balanceClass}">結餘 $${balance.toLocaleString()}</span>
                 </div>
             </div>
-        `;
-    }).join('');
+            <div class="tx-month-list">
+                ${group.transactions.map(tx => renderTransactionCard(tx)).join('')}
+            </div>
+        </section>
+    `;
+}
+
+function renderTransactionCard(tx) {
+    const isExpense = tx.type === 'expense';
+    const typeClass = isExpense ? 'expense' : 'income';
+    const sign = isExpense ? '-' : '+';
+    const icon = categoryIcon[tx.category] || 'fa-receipt';
+    const color = categoryColor[tx.category] || '#64748b';
+    const payerIcon = tx.payer === '揚' ? 'fa-mars' : 'fa-venus';
+    const payerColor = tx.payer === '揚' ? '#3b82f6' : '#ec4899';
+    const amount = toAmount(tx.amount);
+    const category = escapeHtml(tx.category || '未分類');
+    const payer = escapeHtml(tx.payer || '');
+    const note = escapeHtml(tx.note || '');
+    const date = escapeHtml(formatDate(tx.date));
+    const id = escapeHtml(tx.id);
+
+    return `
+        <div class="tx-item card">
+            <div class="tx-info">
+                <div class="tx-icon-svg" style="background:${color}15;color:${color}">
+                    <i class="fa-solid ${icon}"></i>
+                </div>
+                <div class="tx-details">
+                    <h4>${category} <span class="payer-badge" style="background:${payerColor}15;color:${payerColor}"><i class="fa-solid ${payerIcon}"></i> ${payer}</span></h4>
+                    <p>${date} ${note ? '· ' + note : ''}</p>
+                </div>
+            </div>
+            <div class="tx-amount-group">
+                <span class="tx-amount ${typeClass}-text">${sign}$${amount.toLocaleString()}</span>
+                <button class="tx-delete-btn" type="button" data-delete-tx-id="${id}" title="刪除此紀錄">
+                    <i class="fa-solid fa-trash-can"></i>
+                </button>
+            </div>
+        </div>
+    `;
 }
 
 // ==========================================
 // 9. 儀表板與圖表
 // ==========================================
-let expenseChart = null;
-let yearlyChart = null;
-
 // 月份切換
 function changeMonth(delta) {
     selectedMonth += delta;
@@ -339,10 +508,10 @@ function updateMonthLabel() {
 }
 
 // 記帳人篩選
-function filterByPayer(payer) {
+function filterByPayer(payer, trigger) {
     selectedPayer = payer;
     document.querySelectorAll('.filter-pills .pill').forEach(p => p.classList.remove('active'));
-    event.currentTarget.classList.add('active');
+    if (trigger) trigger.classList.add('active');
     updateDashboard();
 }
 
@@ -360,31 +529,78 @@ function updateDashboard() {
     const filtered = getFilteredTx();
     let totalIncome = 0, totalExpense = 0;
     filtered.forEach(tx => {
-        if (tx.type === 'income') totalIncome += tx.amount;
-        if (tx.type === 'expense') totalExpense += tx.amount;
+        const amount = toAmount(tx.amount);
+        if (tx.type === 'income') totalIncome += amount;
+        if (tx.type === 'expense') totalExpense += amount;
     });
     const balance = totalIncome - totalExpense;
 
-    document.getElementById('current-month-balance').textContent = `$${balance.toLocaleString()}`;
     document.getElementById('avg-income').textContent = `$${totalIncome.toLocaleString()}`;
     document.getElementById('avg-expense').textContent = `$${totalExpense.toLocaleString()}`;
     document.getElementById('avg-savings').textContent = `$${balance.toLocaleString()}`;
     updateMonthLabel();
+    updateHeaderBalance();
 
     if (expenseChart) updateChart();
     if (yearlyChart) updateYearlyChart();
 }
 
+function updateHeaderBalance() {
+    const balanceDisplay = document.querySelector('.balance-display');
+    const balanceLabel = document.querySelector('.balance-label');
+    const balanceValue = document.getElementById('current-month-balance');
+    if (!balanceDisplay || !balanceLabel || !balanceValue) return;
+
+    balanceDisplay.style.display = 'flex';
+
+    if (activeTab === 'inventory') {
+        const totalAssets = state.accounts.reduce((sum, account) => sum + toAmount(account.balance), 0);
+        balanceLabel.textContent = '總資產淨值';
+        balanceValue.textContent = `$${totalAssets.toLocaleString()}`;
+        return;
+    }
+
+    const balance = getFilteredTx().reduce((sum, tx) => {
+        const amount = toAmount(tx.amount);
+        return tx.type === 'income' ? sum + amount : sum - amount;
+    }, 0);
+    balanceLabel.textContent = '本月結餘';
+    balanceValue.textContent = `$${balance.toLocaleString()}`;
+}
+
+function resizeActiveCharts() {
+    requestAnimationFrame(() => {
+        if (activeTab === 'dashboard') {
+            if (expenseChart) expenseChart.resize();
+            if (yearlyChart) yearlyChart.resize();
+        }
+        if (activeTab === 'inventory' && netWorthChart) {
+            netWorthChart.resize();
+            renderNetWorthChart();
+        }
+    });
+}
+
 function initChart() {
+    if (typeof Chart === 'undefined') {
+        console.warn('Chart.js 未載入，略過圖表初始化');
+        return;
+    }
+
+    const expenseCanvas = document.getElementById('expenseChart');
+    const yearlyCanvas = document.getElementById('yearlyChart');
+    if (!expenseCanvas || !yearlyCanvas) return;
+
     Chart.defaults.color = '#64748b';
     Chart.defaults.font.family = "'Inter', 'Noto Sans TC', sans-serif";
 
     // 圓餅圖
-    expenseChart = new Chart(document.getElementById('expenseChart').getContext('2d'), {
+    expenseChart = new Chart(expenseCanvas.getContext('2d'), {
         type: 'doughnut',
         data: { labels: [], datasets: [{ data: [], backgroundColor: [], borderWidth: 0, cutout: '75%' }] },
         options: {
             responsive: true, maintainAspectRatio: false,
+            animation: false,
             plugins: {
                 legend: { position: 'right', labels: { color: '#1e293b', padding: 12, font: { size: 11 } } },
                 title: { display: true, text: '支出分佈', color: '#1e293b' }
@@ -393,7 +609,7 @@ function initChart() {
     });
 
     // 年度長條圖
-    yearlyChart = new Chart(document.getElementById('yearlyChart').getContext('2d'), {
+    yearlyChart = new Chart(yearlyCanvas.getContext('2d'), {
         type: 'bar',
         data: {
             labels: ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
@@ -404,6 +620,7 @@ function initChart() {
         },
         options: {
             responsive: true, maintainAspectRatio: false,
+            animation: false,
             plugins: {
                 title: { display: true, text: '年度收支概覽', color: '#1e293b' },
                 legend: { labels: { color: '#1e293b', font: { size: 11 } } }
@@ -421,7 +638,11 @@ function initChart() {
 
 function autoSelectLatestMonth() {
     if (state.transactions.length === 0) return;
-    const dates = state.transactions.map(tx => new Date(tx.date)).sort((a, b) => b - a);
+    const dates = state.transactions
+        .map(tx => new Date(tx.date))
+        .filter(date => !isNaN(date))
+        .sort((a, b) => b - a);
+    if (dates.length === 0) return;
     selectedYear = dates[0].getFullYear();
     selectedMonth = dates[0].getMonth();
 }
@@ -432,7 +653,7 @@ function updateChart() {
     const filtered = getFilteredTx();
     const categoryTotals = {};
     filtered.forEach(tx => {
-        if (tx.type === 'expense') categoryTotals[tx.category] = (categoryTotals[tx.category] || 0) + tx.amount;
+        if (tx.type === 'expense') categoryTotals[tx.category] = (categoryTotals[tx.category] || 0) + toAmount(tx.amount);
     });
 
     const labels = Object.keys(categoryTotals);
@@ -458,8 +679,9 @@ function updateYearlyChart() {
     state.transactions.forEach(tx => {
         const d = new Date(tx.date);
         if (d.getFullYear() === selectedYear && (selectedPayer === 'all' || tx.payer === selectedPayer)) {
-            if (tx.type === 'income') incomeByMonth[d.getMonth()] += tx.amount;
-            if (tx.type === 'expense') expenseByMonth[d.getMonth()] += tx.amount;
+            const amount = toAmount(tx.amount);
+            if (tx.type === 'income') incomeByMonth[d.getMonth()] += amount;
+            if (tx.type === 'expense') expenseByMonth[d.getMonth()] += amount;
         }
     });
 
@@ -480,20 +702,25 @@ function renderInventory() {
     const isEditing = inventoryEditing;
 
     list.innerHTML = state.accounts.map(acc => {
-        total += acc.balance;
+        const balance = toAmount(acc.balance);
+        const name = escapeHtml(acc.name);
+        const id = escapeHtml(acc.id);
+        total += balance;
         return `
             <div class="account-item card">
-                <span class="account-name">${acc.name}</span>
+                <span class="account-name">${name}</span>
                 ${isEditing
-                    ? `<input type="number" class="account-input" data-id="${acc.id}" value="${acc.balance}" onchange="updateAccountBalance(this)" inputmode="numeric">
-                       <button class="delete-account-btn" onclick="deleteAccount('${acc.id}')" title="刪除"><i class="fa-solid fa-trash-can"></i></button>`
-                    : `<span class="account-value">$${acc.balance.toLocaleString()}</span>`
+                    ? `<input type="number" class="account-input" data-id="${id}" value="${balance}" inputmode="numeric">
+                       <button class="delete-account-btn" type="button" data-delete-account-id="${id}" title="刪除"><i class="fa-solid fa-trash-can"></i></button>`
+                    : `<span class="account-value">$${balance.toLocaleString()}</span>`
                 }
             </div>
         `;
     }).join('');
 
-    document.getElementById('current-month-balance').textContent = `$${total.toLocaleString()}`;
+    if (activeTab === 'inventory') {
+        document.getElementById('current-month-balance').textContent = `$${total.toLocaleString()}`;
+    }
 
     const addSection = document.querySelector('.add-account-section');
     const saveBtn = document.getElementById('btn-save-inventory');
@@ -506,6 +733,73 @@ function renderInventory() {
         const date = new Date(state.lastInventoryDate);
         document.getElementById('last-inventory-date').textContent = `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
     }
+
+    renderReconcile();
+}
+
+function renderReconcile() {
+    const el = document.getElementById('reconcile-section');
+    if (!el) return;
+
+    const history = [...(state.inventoryHistory || [])]
+        .filter(h => h && h.date)
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+    if (history.length < 2) {
+        el.innerHTML = history.length === 1
+            ? `<div class="card reconcile-card reconcile-empty">📊 再做一次盤點就能對帳：算出這段期間實際花了多少、有沒有漏記。</div>`
+            : '';
+        return;
+    }
+
+    const latest = history[history.length - 1];
+    const previous = history[history.length - 2];
+    const deltaNetWorth = toAmount(latest.total) - toAmount(previous.total);
+
+    const inRange = tx => tx && tx.date && tx.date > previous.date && tx.date <= latest.date;
+    const recordedIncome = state.transactions
+        .filter(tx => inRange(tx) && tx.type === 'income')
+        .reduce((sum, tx) => sum + toAmount(tx.amount), 0);
+    const recordedExpense = state.transactions
+        .filter(tx => inRange(tx) && tx.type === 'expense')
+        .reduce((sum, tx) => sum + toAmount(tx.amount), 0);
+
+    const recordedSavings = recordedIncome - recordedExpense;
+    const gap = deltaNetWorth - recordedSavings;
+    const gapLabel = gap >= 0 ? '推算未記收入' : '推算未記支出';
+    const gapHint = Math.abs(gap) < 100
+        ? '👌 記帳跟盤點幾乎一致'
+        : gap < 0
+            ? '可能有漏記的支出'
+            : '可能有漏記的收入';
+
+    el.innerHTML = `
+        <div class="card reconcile-card">
+            <h3 class="reconcile-title">📊 盤點對帳</h3>
+            <p class="reconcile-range">${formatDate(previous.date)} → ${formatDate(latest.date)}</p>
+            <div class="reconcile-row">
+                <span>淨資產變化</span>
+                <span class="${deltaNetWorth >= 0 ? 'income-text' : 'expense-text'}">${deltaNetWorth >= 0 ? '+' : '−'}$${Math.abs(deltaNetWorth).toLocaleString()}</span>
+            </div>
+            <div class="reconcile-row">
+                <span>已記收入</span>
+                <span class="income-text">+$${recordedIncome.toLocaleString()}</span>
+            </div>
+            <div class="reconcile-row">
+                <span>已記支出</span>
+                <span class="expense-text">−$${recordedExpense.toLocaleString()}</span>
+            </div>
+            <div class="reconcile-row reconcile-divider">
+                <span>記帳結餘</span>
+                <span class="${recordedSavings >= 0 ? 'income-text' : 'expense-text'}">${recordedSavings >= 0 ? '+' : '−'}$${Math.abs(recordedSavings).toLocaleString()}</span>
+            </div>
+            <div class="reconcile-row reconcile-gap">
+                <span>${gapLabel}</span>
+                <span>$${Math.abs(gap).toLocaleString()}</span>
+            </div>
+            <p class="reconcile-hint">${gapHint}</p>
+        </div>
+    `;
 }
 
 function toggleInventoryEdit() {
@@ -515,11 +809,10 @@ function toggleInventoryEdit() {
 
 function updateAccountBalance(input) {
     const id = input.dataset.id;
-    const value = parseInt(input.value) || 0;
+    const value = toAmount(input.value);
     const acc = state.accounts.find(a => a.id === id);
     if (acc) acc.balance = value;
-    let total = state.accounts.reduce((sum, a) => sum + a.balance, 0);
-    document.getElementById('current-month-balance').textContent = `$${total.toLocaleString()}`;
+    updateHeaderBalance();
 }
 
 function addNewAccount() {
@@ -541,22 +834,14 @@ function deleteAccount(id) {
 function saveInventory() {
     document.querySelectorAll('.account-input').forEach(input => {
         const id = input.dataset.id;
-        const value = parseInt(input.value) || 0;
+        const value = toAmount(input.value);
         const acc = state.accounts.find(a => a.id === id);
         if (acc) acc.balance = value;
     });
     state.lastInventoryDate = new Date().toISOString();
-    saveLocalData();
-    inventoryEditing = false;
-    renderInventory();
-    syncToSheets('saveInventory', {
-        accounts: state.accounts,
-        lastInventoryDate: state.lastInventoryDate
-    });
-    showToast('✅ 盤點已儲存！', 'success');
 
     // 記錄歷史淨資產
-    const total = state.accounts.reduce((sum, a) => sum + a.balance, 0);
+    const total = state.accounts.reduce((sum, a) => sum + toAmount(a.balance), 0);
     const today = new Date().toISOString().slice(0, 10);
     const existing = state.inventoryHistory.findIndex(h => h.date === today);
     if (existing >= 0) {
@@ -564,8 +849,17 @@ function saveInventory() {
     } else {
         state.inventoryHistory.push({ date: today, total });
     }
+
     saveLocalData();
+    inventoryEditing = false;
+    renderInventory();
     renderNetWorthChart();
+    syncToSheets('saveInventory', {
+        accounts: state.accounts,
+        lastInventoryDate: state.lastInventoryDate,
+        inventoryHistory: state.inventoryHistory
+    });
+    showToast('✅ 盤點已儲存！', 'success');
 }
 
 // ==========================================
@@ -575,9 +869,9 @@ function filterTransactions() {
     const keyword = document.getElementById('tx-search').value.trim().toLowerCase();
     if (!keyword) { renderTransactions(); return; }
     const filtered = state.transactions.filter(tx =>
-        tx.category.toLowerCase().includes(keyword) ||
-        (tx.note && tx.note.toLowerCase().includes(keyword)) ||
-        (tx.payer && tx.payer.toLowerCase().includes(keyword))
+        String(tx.category || '').toLowerCase().includes(keyword) ||
+        String(tx.note || '').toLowerCase().includes(keyword) ||
+        String(tx.payer || '').toLowerCase().includes(keyword)
     );
     renderTransactions(filtered);
 }
@@ -614,7 +908,7 @@ function copyLastMonth() {
         const newTx = {
             id: 'tx_' + Date.now() + Math.random().toString(36).slice(2, 5),
             type: 'expense',
-            amount: tx.amount,
+            amount: toAmount(tx.amount),
             category: tx.category,
             date: dateStr,
             note: tx.note || '',
@@ -634,9 +928,13 @@ function copyLastMonth() {
 // ==========================================
 // 13. 淨資產走勢圖
 // ==========================================
-let netWorthChart = null;
-
 function initNetWorthChart() {
+    if (netWorthChart) {
+        renderNetWorthChart();
+        return;
+    }
+    if (typeof Chart === 'undefined') return;
+
     const ctx = document.getElementById('netWorthChart');
     if (!ctx) return;
     netWorthChart = new Chart(ctx.getContext('2d'), {
@@ -653,6 +951,7 @@ function initNetWorthChart() {
         }] },
         options: {
             responsive: true, maintainAspectRatio: false,
+            animation: false,
             plugins: {
                 title: { display: true, text: '淨資產走勢', color: '#1e293b' },
                 legend: { display: false }
@@ -668,13 +967,15 @@ function initNetWorthChart() {
 
 function renderNetWorthChart() {
     if (!netWorthChart) return;
-    const history = state.inventoryHistory.sort((a, b) => a.date.localeCompare(b.date));
+    const history = [...(state.inventoryHistory || [])]
+        .filter(h => h && h.date)
+        .sort((a, b) => a.date.localeCompare(b.date));
     if (history.length === 0) {
         netWorthChart.data.labels = ['尚無資料'];
         netWorthChart.data.datasets[0].data = [0];
     } else {
         netWorthChart.data.labels = history.map(h => h.date.slice(5));
-        netWorthChart.data.datasets[0].data = history.map(h => h.total);
+        netWorthChart.data.datasets[0].data = history.map(h => toAmount(h.total));
     }
     netWorthChart.update();
 }
@@ -690,15 +991,19 @@ function renderGoals() {
         return;
     }
     list.innerHTML = state.savingsGoals.map(g => {
-        const pct = Math.min(100, Math.round((g.current / g.target) * 100));
+        const target = Math.max(0, toAmount(g.target));
+        const current = Math.max(0, toAmount(g.current));
+        const pct = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
         const color = pct >= 80 ? '#059669' : pct >= 50 ? '#f59e0b' : '#e11d48';
+        const id = escapeHtml(g.id);
+        const name = escapeHtml(g.name);
         return `
             <div class="goal-card card">
                 <div class="goal-header">
-                    <span class="goal-name">🎯 ${g.name}</span>
-                    <button class="tx-delete-btn" onclick="deleteGoal('${g.id}')" title="刪除"><i class="fa-solid fa-trash-can"></i></button>
+                    <span class="goal-name">🎯 ${name}</span>
+                    <button class="tx-delete-btn" type="button" data-delete-goal-id="${id}" title="刪除"><i class="fa-solid fa-trash-can"></i></button>
                 </div>
-                <div class="goal-amounts">$${g.current.toLocaleString()} / $${g.target.toLocaleString()} (${pct}%)</div>
+                <div class="goal-amounts">$${current.toLocaleString()} / $${target.toLocaleString()} (${pct}%)</div>
                 <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div>
             </div>
         `;
@@ -715,8 +1020,8 @@ function closeGoalModal() {
 function handleGoalSubmit(e) {
     e.preventDefault();
     const name = document.getElementById('goal-name').value.trim();
-    const target = parseInt(document.getElementById('goal-target').value) || 0;
-    const current = parseInt(document.getElementById('goal-current').value) || 0;
+    const target = toAmount(document.getElementById('goal-target').value);
+    const current = toAmount(document.getElementById('goal-current').value);
     if (!name || !target) return;
 
     state.savingsGoals.push({ id: 'goal_' + Date.now(), name, target, current });
@@ -740,12 +1045,17 @@ function deleteGoal(id) {
 // 12. 本機備用儲存 (Fallback / 離線快取)
 // ==========================================
 function saveLocalData() {
-    localStorage.setItem('fb_transactions', JSON.stringify(state.transactions));
-    localStorage.setItem('fb_accounts', JSON.stringify(state.accounts));
-    localStorage.setItem('fb_inventory_history', JSON.stringify(state.inventoryHistory || []));
-    localStorage.setItem('fb_savings_goals', JSON.stringify(state.savingsGoals || []));
-    if (state.lastInventoryDate) {
-        localStorage.setItem('fb_last_inventory', state.lastInventoryDate);
+    try {
+        localStorage.setItem('fb_transactions', JSON.stringify(state.transactions));
+        localStorage.setItem('fb_accounts', JSON.stringify(state.accounts));
+        localStorage.setItem('fb_inventory_history', JSON.stringify(state.inventoryHistory || []));
+        localStorage.setItem('fb_savings_goals', JSON.stringify(state.savingsGoals || []));
+        if (state.lastInventoryDate) {
+            localStorage.setItem('fb_last_inventory', state.lastInventoryDate);
+        }
+    } catch (error) {
+        console.error('本機儲存失敗:', error);
+        showToast('⚠️ 本機儲存失敗，請檢查瀏覽器空間', 'warning');
     }
 }
 

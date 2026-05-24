@@ -73,7 +73,7 @@
                     <input type="text" id="tx-search" placeholder="搜尋分類或備註..." oninput="filterTransactions()">
                 </div>
 
-                <h3 class="section-title">最近紀錄</h3>
+                <h3 class="section-title">月份紀錄</h3>
                 <div class="transaction-list" id="recent-transactions">
                 </div>
             </section>
@@ -89,9 +89,9 @@
 
                 <!-- 記帳人篩選 -->
                 <div class="filter-pills">
-                    <button class="pill active" onclick="filterByPayer('all')">全部</button>
-                    <button class="pill" onclick="filterByPayer('揚')"><i class="fa-solid fa-mars" style="color:#3b82f6"></i> 揚</button>
-                    <button class="pill" onclick="filterByPayer('妡')"><i class="fa-solid fa-venus" style="color:#ec4899"></i> 妡</button>
+                    <button class="pill active" onclick="filterByPayer('all', this)">全部</button>
+                    <button class="pill" onclick="filterByPayer('揚', this)"><i class="fa-solid fa-mars" style="color:#3b82f6"></i> 揚</button>
+                    <button class="pill" onclick="filterByPayer('妡', this)"><i class="fa-solid fa-venus" style="color:#ec4899"></i> 妡</button>
                 </div>
 
                 <!-- 統計卡片 -->
@@ -131,7 +131,10 @@
                 <div class="chart-container card" style="height:220px">
                     <canvas id="netWorthChart"></canvas>
                 </div>
-                
+
+                <!-- 盤點對帳（推算未記支出/收入） -->
+                <div id="reconcile-section"></div>
+
                 <div class="account-list" id="account-list">
                 </div>
                 
@@ -158,15 +161,15 @@
 
         <!-- Bottom Navigation -->
         <nav class="bottom-nav">
-            <button class="nav-item active" onclick="switchTab('record')">
+            <button class="nav-item active" onclick="switchTab('record', this)">
                 <i class="fa-solid fa-wallet"></i>
                 <span>記帳</span>
             </button>
-            <button class="nav-item" onclick="switchTab('dashboard')">
+            <button class="nav-item" onclick="switchTab('dashboard', this)">
                 <i class="fa-solid fa-chart-pie"></i>
                 <span>報表</span>
             </button>
-            <button class="nav-item" onclick="switchTab('inventory')">
+            <button class="nav-item" onclick="switchTab('inventory', this)">
                 <i class="fa-solid fa-vault"></i>
                 <span>盤點</span>
             </button>
@@ -253,6 +256,7 @@
         // 自動版本號載入 app.js
         var s = document.createElement('script');
         s.src = 'app.js?v=' + new Date().toISOString().slice(0,10).replace(/-/g,'');
+        s.async = false;
         document.body.appendChild(s);
     </script>
 </body>

@@ -274,7 +274,69 @@ h1 {
 .transaction-list {
     display: flex;
     flex-direction: column;
+    gap: 24px;
+}
+
+.tx-month-group {
+    display: flex;
+    flex-direction: column;
     gap: 12px;
+}
+
+.tx-month-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 2px 2px 0;
+}
+
+.tx-month-header h4 {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--text-main);
+}
+
+.tx-month-header span {
+    display: inline-block;
+    margin-top: 3px;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+
+.tx-month-summary {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 6px;
+    max-width: 230px;
+}
+
+.month-stat {
+    padding: 4px 7px;
+    border-radius: 8px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    font-size: 0.72rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.tx-month-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+@media (max-width: 380px) {
+    .tx-month-header {
+        flex-direction: column;
+    }
+
+    .tx-month-summary {
+        justify-content: flex-start;
+        max-width: none;
+    }
 }
 
 .tx-item {
@@ -712,4 +774,52 @@ h1 {
     height: 100%;
     border-radius: 4px;
     transition: width 0.5s ease;
+}
+
+/* Reconcile Card (盤點對帳) */
+.reconcile-card {
+    margin-top: 16px;
+    padding: 16px;
+}
+.reconcile-empty {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+.reconcile-title {
+    font-size: 1rem;
+    margin: 0 0 4px;
+    color: var(--text-main);
+}
+.reconcile-range {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin: 0 0 12px;
+}
+.reconcile-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    font-size: 0.95rem;
+    color: var(--text-main);
+}
+.reconcile-divider {
+    border-top: 1px dashed var(--bg-main);
+    margin-top: 4px;
+    padding-top: 10px;
+    font-weight: 600;
+}
+.reconcile-gap {
+    background: var(--bg-main);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-top: 8px;
+    font-weight: 600;
+}
+.reconcile-hint {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin: 8px 0 0;
+    text-align: center;
 }
