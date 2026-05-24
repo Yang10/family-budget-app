@@ -1024,6 +1024,7 @@ function handleGoalSubmit(e) {
     document.getElementById('goal-target').value = '';
     document.getElementById('goal-current').value = '';
     showToast('✅ 目標已新增', 'success');
+    syncToSheets('saveGoals', { savingsGoals: state.savingsGoals });
 }
 
 function deleteGoal(id) {
@@ -1031,6 +1032,7 @@ function deleteGoal(id) {
     state.savingsGoals = state.savingsGoals.filter(g => g.id !== id);
     saveLocalData();
     renderGoals();
+    syncToSheets('saveGoals', { savingsGoals: state.savingsGoals });
 }
 
 // ==========================================
