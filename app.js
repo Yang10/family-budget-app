@@ -308,7 +308,27 @@ async function tryBiometricUnlock() {
 async function checkBiometricStatus() {
     const credIdBase64 = localStorage.getItem('fb_credential_id');
     if (credIdBase64) {
-        const container = document.getElementById('biometric-unlock-container');
+        let container = document.getElementById('biometric-unlock-container');
+        if (!container) {
+            const lockScreen = document.getElementById('lock-screen');
+            if (lockScreen) {
+                container = document.createElement('div');
+                container.id = 'biometric-unlock-container';
+                container.style.marginTop = '24px';
+                container.style.display = 'none';
+                container.innerHTML = `
+                    <button class="btn btn-outline" onclick="tryBiometricUnlock()" style="border-color: var(--primary); color: var(--primary);">
+                        <i class="fa-solid fa-face-smile"></i> FaceID / 指紋解鎖
+                    </button>
+                `;
+                const pinError = document.getElementById('pin-error');
+                if (pinError) {
+                    pinError.parentNode.insertBefore(container, pinError.nextSibling);
+                } else {
+                    lockScreen.appendChild(container);
+                }
+            }
+        }
         if (container) container.style.display = 'block';
 
         // 行動裝置通常需要使用者手勢，但我們可以試著自動觸發一次，若被攔截則讓使用者點擊按鈕

@@ -18,8 +18,8 @@
     <link rel="stylesheet" id="app-css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        // 自動版本號：用當天日期當版本，每天自動更新快取
-        var v = new Date().toISOString().slice(0,10).replace(/-/g,'');
+        // 自動版本號：使用時間戳記作為版本，每次載入都更新快取
+        var v = Date.now();
         document.getElementById('app-css').href = 'style.css?v=' + v;
     </script>
 </head>
@@ -260,7 +260,7 @@
     <script>
         // 自動版本號載入 app.js
         var s = document.createElement('script');
-        s.src = 'app.js?v=' + new Date().toISOString().slice(0,10).replace(/-/g,'');
+        s.src = 'app.js?v=' + Date.now();
         s.async = false;
         document.body.appendChild(s);
     </script>
