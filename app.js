@@ -1093,7 +1093,32 @@ function autoReconcile(gap, date) {
     syncToSheets('addTransaction', { data: newTx });
 }
 
-function toggleInventoryEdit() {
+async function toggleInventoryEdit() {
+    showLoading(true);
+    if (isSheetsConfigured()) {
+        try {
+            const response = await fetchWithTimeout(SCRIPT_URL);
+            if (response.ok) {
+                const data = await response.json();
+                if (Array.isArray(data.accounts)) {
+                    state.accounts = data.accounts.filter(acc => acc && acc.id && acc.name && acc.name.trim() !== '');
+                }
+                if (data.lastInventoryDate) {
+                    state.lastInventoryDate = data.lastInventoryDate;
+                }
+                if (Array.isArray(data.inventoryHistory)) {
+                    state.inventoryHistory = data.inventoryHistory.map(h => {
+                        if (h && h.date) h.date = toLocalDateStr(h.date);
+                        return h;
+                    });
+                }
+                saveLocalData();
+            }
+        } catch (error) {
+            console.warn("編輯前同步雲端失敗:", error);
+        }
+    }
+    showLoading(false);
     inventoryEditing = true;
     renderInventory();
 }
