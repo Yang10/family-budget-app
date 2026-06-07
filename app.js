@@ -124,6 +124,15 @@ function toLocalDateStr(dateVal) {
     return `${year}-${month}-${day}`;
 }
 
+// 取得最新盤點日期 (YYYY-MM-DD)
+function getLatestInventoryDate() {
+    if (!state.inventoryHistory || state.inventoryHistory.length === 0) return null;
+    const sorted = [...state.inventoryHistory]
+        .filter(h => h && h.date)
+        .sort((a, b) => b.date.localeCompare(a.date));
+    return sorted.length > 0 ? sorted[0].date : null;
+}
+
 // 報表狀態
 let selectedYear = new Date().getFullYear();
 let selectedMonth = new Date().getMonth();
@@ -361,14 +370,18 @@ async function loadData() {
                 if (tx && tx.date) tx.date = toLocalDateStr(tx.date);
                 return tx;
             });
-            state.accounts = (Array.isArray(data.accounts) && data.accounts.length > 0) ? data.accounts : localData.accounts;
-            state.lastInventoryDate = data.lastInventoryDate || localData.lastInventoryDate;
-            
             const rawInventoryHistory = Array.isArray(data.inventoryHistory) ? data.inventoryHistory : localData.inventoryHistory;
             state.inventoryHistory = rawInventoryHistory.map(h => {
                 if (h && h.date) h.date = toLocalDateStr(h.date);
                 return h;
             });
+
+            const rawAccounts = (Array.isArray(data.accounts) && data.accounts.length > 0) ? data.accounts : localData.accounts;
+            state.accounts = rawAccounts.filter(acc => acc && acc.id && acc.name && acc.name.trim() !== '');
+
+            const latestHistoryDate = getLatestInventoryDate();
+            state.lastInventoryDate = latestHistoryDate ? new Date(latestHistoryDate + "T12:00:00").toISOString() : (data.lastInventoryDate || localData.lastInventoryDate);
+
             state.savingsGoals = Array.isArray(data.savingsGoals) ? data.savingsGoals : localData.savingsGoals;
 
             // 同步到 localStorage 作為離線備份
@@ -419,14 +432,19 @@ function applyLoadedData(data) {
         if (tx && tx.date) tx.date = toLocalDateStr(tx.date);
         return tx;
     });
-    state.accounts = Array.isArray(data.accounts) && data.accounts.length > 0 ? data.accounts : cloneDefaultAccounts();
-    state.lastInventoryDate = data.lastInventoryDate || null;
     
     const rawInventoryHistory = Array.isArray(data.inventoryHistory) ? data.inventoryHistory : [];
     state.inventoryHistory = rawInventoryHistory.map(h => {
         if (h && h.date) h.date = toLocalDateStr(h.date);
         return h;
     });
+
+    const rawAccounts = Array.isArray(data.accounts) && data.accounts.length > 0 ? data.accounts : cloneDefaultAccounts();
+    state.accounts = rawAccounts.filter(acc => acc && acc.id && acc.name && acc.name.trim() !== '');
+
+    const latestHistoryDate = getLatestInventoryDate();
+    state.lastInventoryDate = latestHistoryDate ? new Date(latestHistoryDate + "T12:00:00").toISOString() : (data.lastInventoryDate || null);
+    
     state.savingsGoals = Array.isArray(data.savingsGoals) ? data.savingsGoals : [];
 }
 
@@ -915,7 +933,7 @@ function renderInventory() {
     const header = document.querySelector('.inventory-header');
     if (header) {
         if (isEditing) {
-            const defaultDate = state.lastInventoryDate ? toLocalDateStr(state.lastInventoryDate) : getLocalDateString();
+            const defaultDate = getLocalDateString();
             header.innerHTML = `
                 <div style="display:flex; align-items:center; justify-content:center; gap:8px;">
                     <span style="color:var(--text-muted);font-size:0.85rem">盤點日期:</span>
@@ -1093,27 +1111,51 @@ function addNewAccount() {
 }
 
 function deleteAccount(id) {
-    if (confirm("確定要刪除這個帳戶嗎？")) {
-        state.accounts = state.accounts.filter(acc => acc.id !== id);
-        renderInventory();
+    if (!confirm("確定要刪除這個帳戶嗎？")) return;
+
+    // 如果在編輯模式，先將當前畫面上所有輸入的金額讀取回 state，避免刪除時其他人的修改遺失
+    if (inventoryEditing) {
+        document.querySelectorAll('.account-input').forEach(input => {
+            const id = input.dataset.id;
+            const value = toAmount(input.value);
+            const acc = state.accounts.find(a => a.id === id);
+            if (acc) acc.balance = value;
+        });
     }
+
+    state.accounts = state.accounts.filter(acc => acc && acc.id !== id && acc.name && acc.name.trim() !== '');
+    renderInventory();
+
+    // 立即儲存並同步，但不關閉編輯狀態
+    saveLocalData();
+    syncToSheets('saveInventory', {
+        accounts: state.accounts,
+        lastInventoryDate: state.lastInventoryDate,
+        inventoryHistory: state.inventoryHistory
+    });
 }
 
 function saveInventory() {
+    // 1. 先將畫面上所有輸入的金額讀取出來
+    const inputBalances = {};
     document.querySelectorAll('.account-input').forEach(input => {
         const id = input.dataset.id;
         const value = toAmount(input.value);
-        const acc = state.accounts.find(a => a.id === id);
-        if (acc) acc.balance = value;
+        inputBalances[id] = value;
     });
 
     const dateInput = document.getElementById('inventory-date-input');
     const selectedDate = dateInput ? dateInput.value : getLocalDateString();
-    state.lastInventoryDate = new Date(selectedDate + "T12:00:00").toISOString();
-
-    // 記錄歷史淨資產
-    const total = state.accounts.reduce((sum, a) => sum + toAmount(a.balance), 0);
+    
+    // 2. 計算該盤點日期的總額
+    const total = Object.values(inputBalances).reduce((sum, bal) => sum + bal, 0);
     const today = selectedDate;
+
+    // 判斷所選日期是否為過去的歷史月份 (小於目前最新的盤點日期)
+    const latestDate = getLatestInventoryDate();
+    const isPastDate = latestDate && today < latestDate;
+
+    // 3. 更新歷史紀錄
     const existing = state.inventoryHistory.findIndex(h => h.date === today);
     if (existing >= 0) {
         state.inventoryHistory[existing].total = total;
@@ -1121,16 +1163,37 @@ function saveInventory() {
         state.inventoryHistory.push({ date: today, total });
     }
 
+    // 4. 如果不是過去歷史月份，才更新現有帳戶的 balance (避免修正歷史時覆蓋掉目前的最新帳戶金額)
+    if (!isPastDate) {
+        state.accounts.forEach(acc => {
+            if (acc.id in inputBalances) {
+                acc.balance = inputBalances[acc.id];
+            }
+        });
+        showToast('✅ 盤點已儲存！', 'success');
+    } else {
+        showToast(`✅ ${today.slice(0, 7)} 歷史盤點已更新！目前餘額保持不變。`, 'success');
+    }
+
+    // 更新最新盤點日期為歷史中的最新日期
+    const latestInventoryDate = getLatestInventoryDate();
+    if (latestInventoryDate) {
+        state.lastInventoryDate = new Date(latestInventoryDate + "T12:00:00").toISOString();
+    }
+
+    // 安全防護：過濾空白帳戶
+    state.accounts = state.accounts.filter(acc => acc && acc.id && acc.name && acc.name.trim() !== '');
+
     saveLocalData();
     inventoryEditing = false;
     renderInventory();
     renderNetWorthChart();
+
     syncToSheets('saveInventory', {
         accounts: state.accounts,
         lastInventoryDate: state.lastInventoryDate,
         inventoryHistory: state.inventoryHistory
     });
-    showToast('✅ 盤點已儲存！', 'success');
 }
 
 // ==========================================
