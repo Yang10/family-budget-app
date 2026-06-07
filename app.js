@@ -143,6 +143,9 @@ function initApp() {
     if (dateInput) dateInput.value = getLocalDateString();
     bindDynamicActions();
     initChart();
+
+    // 檢查生物辨識解鎖狀態
+    checkBiometricStatus();
 }
 
 if (document.readyState === 'loading') {
@@ -184,7 +187,7 @@ function bindDynamicActions() {
 // (已改用 .app-container { position:fixed; top:0; bottom:0 } 處理高度, 不再需要 setAppHeight)
 
 // ==========================================
-// 3. 安全鎖邏輯
+// 3. 安全鎖與生物辨識邏輯 (PIN / FaceID / TouchID)
 // ==========================================
 function checkPin() {
     const input = document.getElementById('pin-input').value;
@@ -193,9 +196,125 @@ function checkPin() {
     if (input === SECURITY_PIN) {
         document.getElementById('lock-screen').style.display = 'none';
         loadData();
+        
+        // 登入成功後，檢查並引導啟用 FaceID/指紋 解鎖
+        checkAndSetupBiometric();
     } else {
         errorMsg.style.display = 'block';
         document.getElementById('pin-input').value = '';
+    }
+}
+
+// 生物辨識相關輔助函式
+function bufferToBase64(buffer) {
+    return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+}
+
+function base64ToBuffer(base64) {
+    return Uint8Array.from(atob(base64), c => c.charCodeAt(0)).buffer;
+}
+
+async function isBiometricAvailable() {
+    if (!window.PublicKeyCredential) return false;
+    try {
+        return await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+    } catch (e) {
+        console.warn("無法偵測本機驗證器:", e);
+        return false;
+    }
+}
+
+async function checkAndSetupBiometric() {
+    try {
+        const available = await isBiometricAvailable();
+        if (!available) return;
+
+        const registered = localStorage.getItem('fb_credential_id');
+        if (registered) return;
+
+        // 登入成功 1 秒後引導詢問，避免畫面切換過於突兀
+        setTimeout(() => {
+            if (confirm("是否啟用 FaceID / 指紋快速解鎖功能？\n啟用後，下次開啟 App 即可一鍵快速登入。")) {
+                registerBiometric();
+            }
+        }, 1000);
+    } catch (e) {
+        console.error("生物辨識設定失敗:", e);
+    }
+}
+
+async function registerBiometric() {
+    try {
+        const challenge = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]);
+        const hostname = window.location.hostname || "localhost";
+        const createOptions = {
+            publicKey: {
+                challenge: challenge,
+                rp: { name: "家庭記帳 App", id: hostname },
+                user: {
+                    id: new Uint8Array([1]),
+                    name: "family_user",
+                    displayName: "Family User"
+                },
+                pubKeyCredParams: [{ type: "public-key", alg: -7 }], // ES256
+                authenticatorSelection: {
+                    authenticatorAttachment: "platform", // FaceID / TouchID / Windows Hello
+                    userVerification: "required"
+                },
+                timeout: 60000
+            }
+        };
+        const credential = await navigator.credentials.create(createOptions);
+        if (credential) {
+            localStorage.setItem('fb_credential_id', bufferToBase64(credential.rawId));
+            showToast('✅ FaceID / 指紋解鎖設定成功！', 'success');
+        }
+    } catch (error) {
+        console.error("註冊生物辨識失敗:", error);
+        showToast('⚠️ 設定失敗，可能是裝置不支援或已取消', 'warning');
+    }
+}
+
+async function tryBiometricUnlock() {
+    try {
+        const credIdBase64 = localStorage.getItem('fb_credential_id');
+        if (!credIdBase64) return;
+
+        const challenge = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]);
+        const hostname = window.location.hostname || "localhost";
+        const getOptions = {
+            publicKey: {
+                challenge: challenge,
+                rpId: hostname,
+                allowCredentials: [{
+                    id: base64ToBuffer(credIdBase64),
+                    type: 'public-key'
+                }],
+                userVerification: "required"
+            }
+        };
+        const assertion = await navigator.credentials.get(getOptions);
+        if (assertion) {
+            document.getElementById('lock-screen').style.display = 'none';
+            loadData();
+            showToast('🔓 快速解鎖成功！', 'success');
+        }
+    } catch (error) {
+        console.error("生物辨識解鎖失敗:", error);
+        // 如果使用者手動取消，就不顯示 toast，讓他們使用 PIN 輸入解鎖
+    }
+}
+
+async function checkBiometricStatus() {
+    const credIdBase64 = localStorage.getItem('fb_credential_id');
+    if (credIdBase64) {
+        const container = document.getElementById('biometric-unlock-container');
+        if (container) container.style.display = 'block';
+
+        // 行動裝置通常需要使用者手勢，但我們可以試著自動觸發一次，若被攔截則讓使用者點擊按鈕
+        setTimeout(() => {
+            tryBiometricUnlock();
+        }, 300);
     }
 }
 

@@ -41,6 +41,11 @@
                 <button class="btn btn-primary" onclick="checkPin()">解鎖</button>
             </div>
             <p id="pin-error" style="color: var(--expense); margin-top: 16px; font-size: 0.9rem; display: none;">密碼錯誤，請重試</p>
+            <div id="biometric-unlock-container" style="margin-top: 24px; display: none;">
+                <button class="btn btn-outline" onclick="tryBiometricUnlock()" style="border-color: var(--primary); color: var(--primary);">
+                    <i class="fa-solid fa-face-smile"></i> FaceID / 指紋解鎖
+                </button>
+            </div>
         </div>
 
         <!-- Header -->
