@@ -99,6 +99,29 @@ function formatDate(dateStr) {
     return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
 }
 
+// 取得本地 YYYY-MM-DD 日期字串
+function getLocalDateString() {
+    const localDate = new Date();
+    const year = localDate.getFullYear();
+    const month = String(localDate.getMonth() + 1).padStart(2, '0');
+    const day = String(localDate.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+// 將日期值標準化為本地 YYYY-MM-DD 日期字串
+function toLocalDateStr(dateVal) {
+    if (!dateVal) return '';
+    if (typeof dateVal === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateVal)) {
+        return dateVal;
+    }
+    const d = new Date(dateVal);
+    if (isNaN(d)) return String(dateVal);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
 // 報表狀態
 let selectedYear = new Date().getFullYear();
 let selectedMonth = new Date().getMonth();
@@ -115,7 +138,7 @@ function initApp() {
     appInitialized = true;
 
     const dateInput = document.getElementById('tx-date');
-    if (dateInput) dateInput.valueAsDate = new Date();
+    if (dateInput) dateInput.value = getLocalDateString();
     bindDynamicActions();
     initChart();
 }
@@ -144,6 +167,15 @@ function bindDynamicActions() {
     document.getElementById('goals-list')?.addEventListener('click', e => {
         const button = e.target.closest('[data-delete-goal-id]');
         if (button) deleteGoal(button.dataset.deleteGoalId);
+    });
+
+    document.getElementById('reconcile-section')?.addEventListener('click', e => {
+        const button = e.target.closest('#btn-auto-reconcile');
+        if (button) {
+            const gap = Number(button.dataset.gap);
+            const date = button.dataset.date;
+            autoReconcile(gap, date);
+        }
     });
 }
 
@@ -183,10 +215,19 @@ async function loadData() {
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const data = await response.json();
 
-            state.transactions = Array.isArray(data.transactions) ? data.transactions : localData.transactions;
+            const rawTransactions = Array.isArray(data.transactions) ? data.transactions : localData.transactions;
+            state.transactions = rawTransactions.map(tx => {
+                if (tx && tx.date) tx.date = toLocalDateStr(tx.date);
+                return tx;
+            });
             state.accounts = (Array.isArray(data.accounts) && data.accounts.length > 0) ? data.accounts : localData.accounts;
             state.lastInventoryDate = data.lastInventoryDate || localData.lastInventoryDate;
-            state.inventoryHistory = Array.isArray(data.inventoryHistory) ? data.inventoryHistory : localData.inventoryHistory;
+            
+            const rawInventoryHistory = Array.isArray(data.inventoryHistory) ? data.inventoryHistory : localData.inventoryHistory;
+            state.inventoryHistory = rawInventoryHistory.map(h => {
+                if (h && h.date) h.date = toLocalDateStr(h.date);
+                return h;
+            });
             state.savingsGoals = Array.isArray(data.savingsGoals) ? data.savingsGoals : localData.savingsGoals;
 
             // 同步到 localStorage 作為離線備份
@@ -232,10 +273,19 @@ function readLocalData() {
 }
 
 function applyLoadedData(data) {
-    state.transactions = Array.isArray(data.transactions) ? data.transactions : [];
+    const rawTransactions = Array.isArray(data.transactions) ? data.transactions : [];
+    state.transactions = rawTransactions.map(tx => {
+        if (tx && tx.date) tx.date = toLocalDateStr(tx.date);
+        return tx;
+    });
     state.accounts = Array.isArray(data.accounts) && data.accounts.length > 0 ? data.accounts : cloneDefaultAccounts();
     state.lastInventoryDate = data.lastInventoryDate || null;
-    state.inventoryHistory = Array.isArray(data.inventoryHistory) ? data.inventoryHistory : [];
+    
+    const rawInventoryHistory = Array.isArray(data.inventoryHistory) ? data.inventoryHistory : [];
+    state.inventoryHistory = rawInventoryHistory.map(h => {
+        if (h && h.date) h.date = toLocalDateStr(h.date);
+        return h;
+    });
     state.savingsGoals = Array.isArray(data.savingsGoals) ? data.savingsGoals : [];
 }
 
@@ -298,7 +348,7 @@ function openModal(type) {
 function closeModal() {
     document.getElementById('transaction-modal').classList.remove('active');
     document.getElementById('transaction-form').reset();
-    document.getElementById('tx-date').valueAsDate = new Date();
+    document.getElementById('tx-date').value = getLocalDateString();
 }
 
 // ==========================================
@@ -721,9 +771,22 @@ function renderInventory() {
     if (saveBtn) saveBtn.style.display = isEditing ? 'block' : 'none';
     if (editBtn) editBtn.style.display = isEditing ? 'none' : 'block';
 
-    if (state.lastInventoryDate) {
-        const date = new Date(state.lastInventoryDate);
-        document.getElementById('last-inventory-date').textContent = `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
+    const header = document.querySelector('.inventory-header');
+    if (header) {
+        if (isEditing) {
+            const defaultDate = state.lastInventoryDate ? toLocalDateStr(state.lastInventoryDate) : getLocalDateString();
+            header.innerHTML = `
+                <div style="display:flex; align-items:center; justify-content:center; gap:8px;">
+                    <span style="color:var(--text-muted);font-size:0.85rem">盤點日期:</span>
+                    <input type="date" id="inventory-date-input" value="${defaultDate}" style="border:1px solid var(--border-color); border-radius:4px; padding:2px 6px; font-size:0.85rem; color:var(--text-main); background:transparent; outline:none;">
+                </div>
+            `;
+        } else {
+            const dateStr = state.lastInventoryDate ? formatDate(state.lastInventoryDate) : '從未';
+            header.innerHTML = `
+                <span class="inventory-date" style="color:var(--text-muted);font-size:0.85rem">最後更新: <span id="last-inventory-date">${dateStr}</span></span>
+            `;
+        }
     }
 
     renderReconcile();
@@ -765,6 +828,12 @@ function renderReconcile() {
             ? '可能有漏記的支出'
             : '可能有漏記的收入';
 
+    const btnHtml = Math.abs(gap) >= 1
+        ? `<button class="btn btn-outline full-width" style="margin-top:12px; font-size:0.85rem;" id="btn-auto-reconcile" data-gap="${gap}" data-date="${latest.date}">
+               <i class="fa-solid fa-scale-balanced"></i> 一鍵自動校正收支
+           </button>`
+        : '';
+
     el.innerHTML = `
         <div class="card reconcile-card">
             <h3 class="reconcile-title">📊 盤點對帳</h3>
@@ -790,8 +859,49 @@ function renderReconcile() {
                 <span>$${Math.abs(gap).toLocaleString()}</span>
             </div>
             <p class="reconcile-hint">${gapHint}</p>
+            ${btnHtml}
         </div>
     `;
+}
+
+function autoReconcile(gap, date) {
+    if (Math.abs(gap) < 1) {
+        showToast('👌 記帳與盤點金額已一致，無需校正', 'info');
+        return;
+    }
+
+    const type = gap > 0 ? 'income' : 'expense';
+    const amount = Math.abs(gap);
+    const category = '帳務校正';
+    const note = gap > 0 ? '系統自動校正：未記收入' : '系統自動校正：未記支出';
+    const payer = '揚';
+
+    if (!confirm(`確定要自動新增一筆 $${amount.toLocaleString()} 的「${type === 'income' ? '帳務校正收入' : '帳務校正支出'}」交易來對齊資產餘額嗎？`)) {
+        return;
+    }
+
+    const id = 'tx_' + Date.now();
+    const newTx = {
+        id,
+        type,
+        amount,
+        category,
+        date,
+        note,
+        payer,
+        timestamp: new Date().toISOString()
+    };
+
+    // 1. 立即更新本地狀態與畫面
+    state.transactions.unshift(newTx);
+    saveLocalData();
+    renderTransactions();
+    updateDashboard();
+    renderInventory();
+    showToast(`✅ 已自動校正：新增一筆 $${amount.toLocaleString()} 的${type === 'income' ? '收入' : '支出'}`, 'success');
+
+    // 2. 背景同步到 Google Sheets
+    syncToSheets('addTransaction', { data: newTx });
 }
 
 function toggleInventoryEdit() {
@@ -830,11 +940,14 @@ function saveInventory() {
         const acc = state.accounts.find(a => a.id === id);
         if (acc) acc.balance = value;
     });
-    state.lastInventoryDate = new Date().toISOString();
+
+    const dateInput = document.getElementById('inventory-date-input');
+    const selectedDate = dateInput ? dateInput.value : getLocalDateString();
+    state.lastInventoryDate = new Date(selectedDate + "T12:00:00").toISOString();
 
     // 記錄歷史淨資產
     const total = state.accounts.reduce((sum, a) => sum + toAmount(a.balance), 0);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = selectedDate;
     const existing = state.inventoryHistory.findIndex(h => h.date === today);
     if (existing >= 0) {
         state.inventoryHistory[existing].total = total;
