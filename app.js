@@ -948,7 +948,12 @@ function renderInventory() {
         }
     }
 
-    renderReconcile();
+    if (isEditing) {
+        const reconcileSection = document.getElementById('reconcile-section');
+        if (reconcileSection) reconcileSection.innerHTML = '';
+    } else {
+        renderReconcile();
+    }
 }
 
 function renderReconcile() {
