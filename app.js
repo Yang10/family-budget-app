@@ -170,7 +170,7 @@ function bindDynamicActions() {
     });
 
     document.getElementById('reconcile-section')?.addEventListener('click', e => {
-        const button = e.target.closest('#btn-auto-reconcile');
+        const button = e.target.closest('.btn-auto-reconcile');
         if (button) {
             const gap = Number(button.dataset.gap);
             const date = button.dataset.date;
@@ -807,61 +807,65 @@ function renderReconcile() {
         return;
     }
 
-    const latest = history[history.length - 1];
-    const previous = history[history.length - 2];
-    const deltaNetWorth = toAmount(latest.total) - toAmount(previous.total);
+    let cardsHtml = '';
+    const maxPeriods = Math.min(history.length - 1, 3); // 顯示最近 3 個區間的對帳卡片
+    for (let i = history.length - 1; i >= history.length - maxPeriods; i--) {
+        const latest = history[i];
+        const previous = history[i - 1];
+        const deltaNetWorth = toAmount(latest.total) - toAmount(previous.total);
 
-    const inRange = tx => tx && tx.date && tx.date > previous.date && tx.date <= latest.date;
-    const recordedIncome = state.transactions
-        .filter(tx => inRange(tx) && tx.type === 'income')
-        .reduce((sum, tx) => sum + toAmount(tx.amount), 0);
-    const recordedExpense = state.transactions
-        .filter(tx => inRange(tx) && tx.type === 'expense')
-        .reduce((sum, tx) => sum + toAmount(tx.amount), 0);
+        const inRange = tx => tx && tx.date && tx.date > previous.date && tx.date <= latest.date;
+        const recordedIncome = state.transactions
+            .filter(tx => inRange(tx) && tx.type === 'income')
+            .reduce((sum, tx) => sum + toAmount(tx.amount), 0);
+        const recordedExpense = state.transactions
+            .filter(tx => inRange(tx) && tx.type === 'expense')
+            .reduce((sum, tx) => sum + toAmount(tx.amount), 0);
 
-    const recordedSavings = recordedIncome - recordedExpense;
-    const gap = deltaNetWorth - recordedSavings;
-    const gapLabel = gap >= 0 ? '推算未記收入' : '推算未記支出';
-    const gapHint = Math.abs(gap) < 100
-        ? '👌 記帳跟盤點幾乎一致'
-        : gap < 0
-            ? '可能有漏記的支出'
-            : '可能有漏記的收入';
+        const recordedSavings = recordedIncome - recordedExpense;
+        const gap = deltaNetWorth - recordedSavings;
+        const gapLabel = gap >= 0 ? '推算未記收入' : '推算未記支出';
+        const gapHint = Math.abs(gap) < 100
+            ? '👌 記帳跟盤點幾乎一致'
+            : gap < 0
+                ? '可能有漏記的支出'
+                : '可能有漏記的收入';
 
-    const btnHtml = Math.abs(gap) >= 1
-        ? `<button class="btn btn-outline full-width" style="margin-top:12px; font-size:0.85rem;" id="btn-auto-reconcile" data-gap="${gap}" data-date="${latest.date}">
-               <i class="fa-solid fa-scale-balanced"></i> 一鍵自動校正收支
-           </button>`
-        : '';
+        const btnHtml = Math.abs(gap) >= 1
+            ? `<button class="btn btn-outline full-width btn-auto-reconcile" style="margin-top:12px; font-size:0.85rem;" data-gap="${gap}" data-date="${latest.date}">
+                   <i class="fa-solid fa-scale-balanced"></i> 一鍵自動校正此區間收支
+               </button>`
+            : '';
 
-    el.innerHTML = `
-        <div class="card reconcile-card">
-            <h3 class="reconcile-title">📊 盤點對帳</h3>
-            <p class="reconcile-range">${formatDate(previous.date)} → ${formatDate(latest.date)}</p>
-            <div class="reconcile-row">
-                <span>淨資產變化</span>
-                <span class="${deltaNetWorth >= 0 ? 'income-text' : 'expense-text'}">${deltaNetWorth >= 0 ? '+' : '−'}$${Math.abs(deltaNetWorth).toLocaleString()}</span>
+        cardsHtml += `
+            <div class="card reconcile-card" style="margin-bottom:16px;">
+                <h3 class="reconcile-title">📊 盤點對帳 (${formatDate(previous.date)} → ${formatDate(latest.date)})</h3>
+                <div class="reconcile-row">
+                    <span>淨資產變化</span>
+                    <span class="${deltaNetWorth >= 0 ? 'income-text' : 'expense-text'}">${deltaNetWorth >= 0 ? '+' : '−'}$${Math.abs(deltaNetWorth).toLocaleString()}</span>
+                </div>
+                <div class="reconcile-row">
+                    <span>已記收入</span>
+                    <span class="income-text">+$${recordedIncome.toLocaleString()}</span>
+                </div>
+                <div class="reconcile-row">
+                    <span>已記支出</span>
+                    <span class="expense-text">−$${recordedExpense.toLocaleString()}</span>
+                </div>
+                <div class="reconcile-row reconcile-divider">
+                    <span>記帳結餘</span>
+                    <span class="${recordedSavings >= 0 ? 'income-text' : 'expense-text'}">${recordedSavings >= 0 ? '+' : '−'}$${Math.abs(recordedSavings).toLocaleString()}</span>
+                </div>
+                <div class="reconcile-row reconcile-gap">
+                    <span>${gapLabel}</span>
+                    <span>$${Math.abs(gap).toLocaleString()}</span>
+                </div>
+                <p class="reconcile-hint">${gapHint}</p>
+                ${btnHtml}
             </div>
-            <div class="reconcile-row">
-                <span>已記收入</span>
-                <span class="income-text">+$${recordedIncome.toLocaleString()}</span>
-            </div>
-            <div class="reconcile-row">
-                <span>已記支出</span>
-                <span class="expense-text">−$${recordedExpense.toLocaleString()}</span>
-            </div>
-            <div class="reconcile-row reconcile-divider">
-                <span>記帳結餘</span>
-                <span class="${recordedSavings >= 0 ? 'income-text' : 'expense-text'}">${recordedSavings >= 0 ? '+' : '−'}$${Math.abs(recordedSavings).toLocaleString()}</span>
-            </div>
-            <div class="reconcile-row reconcile-gap">
-                <span>${gapLabel}</span>
-                <span>$${Math.abs(gap).toLocaleString()}</span>
-            </div>
-            <p class="reconcile-hint">${gapHint}</p>
-            ${btnHtml}
-        </div>
-    `;
+        `;
+    }
+    el.innerHTML = cardsHtml;
 }
 
 function autoReconcile(gap, date) {
