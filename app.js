@@ -30,19 +30,21 @@ const defaultAccounts = [
 ];
 
 const categories = {
-    expense: ['房貸', '車貸', '學費', '水電瓦斯', '信用卡', '餐飲', '日常用品', '交通', '購物', '娛樂', '帳務校正'],
+    expense: ['房貸', '車貸', '學費', '水費', '電費', '瓦斯費', '信用卡', '餐飲', '日常用品', '交通', '購物', '娛樂', '帳務校正'],
     income: ['薪水', '獎金', '投資獲利', '利息', '帳務校正']
 };
 
 const categoryIcon = {
-    '房貸': 'fa-house', '車貸': 'fa-car', '學費': 'fa-graduation-cap', '水電瓦斯': 'fa-bolt',
+    '房貸': 'fa-house', '車貸': 'fa-car', '學費': 'fa-graduation-cap', 
+    '水費': 'fa-droplet', '電費': 'fa-bolt', '瓦斯費': 'fa-fire',
     '信用卡': 'fa-credit-card', '餐飲': 'fa-utensils', '日常用品': 'fa-cart-shopping', '交通': 'fa-bus',
     '購物': 'fa-bag-shopping', '娛樂': 'fa-gamepad', '帳務校正': 'fa-pen-ruler',
     '薪水': 'fa-sack-dollar', '獎金': 'fa-gift', '投資獲利': 'fa-chart-line', '利息': 'fa-building-columns'
 };
 
 const categoryColor = {
-    '房貸': '#4f46e5', '車貸': '#0ea5e9', '學費': '#8b5cf6', '水電瓦斯': '#f59e0b',
+    '房貸': '#4f46e5', '車貸': '#0ea5e9', '學費': '#8b5cf6', 
+    '水費': '#0ea5e9', '電費': '#f59e0b', '瓦斯費': '#f97316',
     '信用卡': '#ec4899', '餐飲': '#e11d48', '日常用品': '#059669', '交通': '#06b6d4',
     '購物': '#d946ef', '娛樂': '#6366f1', '帳務校正': '#64748b',
     '薪水': '#059669', '獎金': '#f59e0b', '投資獲利': '#10b981', '利息': '#3b82f6'
@@ -988,7 +990,7 @@ function filterTransactions() {
 // ==========================================
 // 12. 複製上月固定支出
 // ==========================================
-const fixedCategories = ['房貸', '車貸', '學費', '水電瓦斯', '信用卡'];
+const fixedCategories = ['房貸', '車貸', '學費', '水費', '電費', '瓦斯費', '信用卡'];
 
 function copyLastMonth() {
     const now = new Date();
