@@ -937,25 +937,39 @@ function renderReconcile() {
     const el = document.getElementById('reconcile-section');
     if (!el) return;
 
-    const history = [...(state.inventoryHistory || [])]
-        .filter(h => h && h.date)
-        .sort((a, b) => a.date.localeCompare(b.date));
+    // 將盤點歷史依月份（YYYY-MM）分組，取得每個月最後一次盤點資料
+    const monthHistoryMap = {};
+    (state.inventoryHistory || []).forEach(h => {
+        if (h && h.date) {
+            const monthKey = h.date.slice(0, 7); // "YYYY-MM"
+            if (!monthHistoryMap[monthKey] || h.date > monthHistoryMap[monthKey].date) {
+                monthHistoryMap[monthKey] = h;
+            }
+        }
+    });
 
-    if (history.length < 2) {
-        el.innerHTML = history.length === 1
-            ? `<div class="card reconcile-card reconcile-empty">📊 再做一次盤點就能對帳：算出這段期間實際花了多少、有沒有漏記。</div>`
+    const monthsWithInventory = Object.keys(monthHistoryMap).sort();
+
+    if (monthsWithInventory.length < 2) {
+        el.innerHTML = monthsWithInventory.length === 1
+            ? `<div class="card reconcile-card reconcile-empty">📊 再做一個月份的盤點就能對帳：比對該月實際資產變化與記帳結餘。</div>`
             : '';
         return;
     }
 
     let cardsHtml = '';
-    const maxPeriods = Math.min(history.length - 1, 3); // 顯示最近 3 個區間的對帳卡片
-    for (let i = history.length - 1; i >= history.length - maxPeriods; i--) {
-        const latest = history[i];
-        const previous = history[i - 1];
+    const maxPeriods = Math.min(monthsWithInventory.length - 1, 3); // 顯示最近 3 個月份的對帳卡片
+    for (let i = monthsWithInventory.length - 1; i >= monthsWithInventory.length - maxPeriods; i--) {
+        const currentMonthKey = monthsWithInventory[i];
+        const prevMonthKey = monthsWithInventory[i - 1];
+
+        const latest = monthHistoryMap[currentMonthKey];
+        const previous = monthHistoryMap[prevMonthKey];
+
         const deltaNetWorth = toAmount(latest.total) - toAmount(previous.total);
 
-        const inRange = tx => tx && tx.date && tx.date > previous.date && tx.date <= latest.date;
+        // 篩選出日期剛好落在當前月分 (YYYY-MM) 內的交易
+        const inRange = tx => tx && tx.date && tx.date.slice(0, 7) === currentMonthKey;
         const recordedIncome = state.transactions
             .filter(tx => inRange(tx) && tx.type === 'income')
             .reduce((sum, tx) => sum + toAmount(tx.amount), 0);
@@ -972,15 +986,22 @@ function renderReconcile() {
                 ? '可能有漏記的支出'
                 : '可能有漏記的收入';
 
+        const year = currentMonthKey.slice(0, 4);
+        const month = currentMonthKey.slice(5, 7);
+        const titleStr = `${year}年${Number(month)}月`;
+
         const btnHtml = Math.abs(gap) >= 1
             ? `<button class="btn btn-outline full-width btn-auto-reconcile" style="margin-top:12px; font-size:0.85rem;" data-gap="${gap}" data-date="${latest.date}">
-                   <i class="fa-solid fa-scale-balanced"></i> 一鍵自動校正此區間收支
+                   <i class="fa-solid fa-scale-balanced"></i> 一鍵自動校正此月收支
                </button>`
             : '';
 
         cardsHtml += `
             <div class="card reconcile-card" style="margin-bottom:16px;">
-                <h3 class="reconcile-title">📊 盤點對帳 (${formatDate(previous.date)} → ${formatDate(latest.date)})</h3>
+                <h3 class="reconcile-title">📊 ${titleStr} 盤點對帳</h3>
+                <div class="reconcile-row" style="font-size:0.8rem; color:var(--text-muted); margin-bottom:8px; margin-top:-4px;">
+                    <span>資產變化區間: ${formatDate(previous.date)} → ${formatDate(latest.date)}</span>
+                </div>
                 <div class="reconcile-row">
                     <span>淨資產變化</span>
                     <span class="${deltaNetWorth >= 0 ? 'income-text' : 'expense-text'}">${deltaNetWorth >= 0 ? '+' : '−'}$${Math.abs(deltaNetWorth).toLocaleString()}</span>
